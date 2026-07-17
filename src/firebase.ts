@@ -127,6 +127,16 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
+export const anonymousSignIn = async (): Promise<{ user: User } | null> => {
+  try {
+    const result = await signInAnonymously(auth);
+    return { user: result.user };
+  } catch (error: any) {
+    console.error('Anonymous sign in error:', error);
+    throw error;
+  }
+};
+
 // --- Firestore Offline / Quota Fallback Shim System ---
 export let isQuotaExceeded = false;
 try {

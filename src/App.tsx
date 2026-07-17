@@ -36,7 +36,7 @@ import { OnboardingWizard } from './components/OnboardingWizard.js';
 import InsightReveal from './components/InsightReveal.js';
 import InsightFeed from './components/InsightFeed.js';
 import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, InsightData, ingestTelemetry } from './lib/api.js';
-import { auth, db, googleSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
+import { auth, db, googleSignIn, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
 import { ContextMenu } from './components/ContextMenu.js';
 
 type ModelState = 'Idle' | 'Listening' | 'Reasoning' | 'Learning' | 'Nudging' | 'Consolidating' | 'Inspired' | 'Syncing';
@@ -170,6 +170,8 @@ function MainApp() {
   const [modelState, setModelState] = useState<ModelState>('Idle');
   const [activeInsight, setActiveInsight] = useState<InsightData | null>(null);
   const [appView, setAppView] = useState<'landing' | 'dashboard'>('landing');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]);
   const [neuralSway, setNeuralSway] = useState<{ spins: number[], total: number, multiplier: number }>({
@@ -2159,19 +2161,43 @@ function MainApp() {
       <LandingScreen theme={theme}
         onEnter={async () => {
           if (!user) {
+            setIsAuthLoading(true);
+            setAuthError(null);
             try {
               await googleSignIn();
-            } catch (error) {
+            } catch (error: any) {
               console.error("Sign in failed:", error);
+              setAuthError(error?.message || String(error));
+              setIsAuthLoading(false);
               return;
             }
+            setIsAuthLoading(false);
           }
-          addLog("Neural connection established.", "NEURAL", "BRIDGE");
+          addLog("Neural connection established via Google Auth.", "NEURAL", "BRIDGE");
           sessionStartTime.current = Date.now();
           lastActivity.current = Date.now();
           setAppView('dashboard');
         }}
-                toggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        onEnterGuest={async () => {
+          setIsAuthLoading(true);
+          setAuthError(null);
+          try {
+            await anonymousSignIn();
+          } catch (error: any) {
+            console.error("Guest sign in failed:", error);
+            setAuthError(error?.message || String(error));
+            setIsAuthLoading(false);
+            return;
+          }
+          setIsAuthLoading(false);
+          addLog("Neural connection established via Guest Mode.", "NEURAL", "BRIDGE");
+          sessionStartTime.current = Date.now();
+          lastActivity.current = Date.now();
+          setAppView('dashboard');
+        }}
+        isLoading={isAuthLoading}
+        authError={authError}
+        toggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
       />
     );
   }

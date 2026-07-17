@@ -4,11 +4,21 @@ import { Sun, Moon, Zap } from 'lucide-react';
 
 interface LandingScreenProps {
   onEnter: () => void;
+  onEnterGuest?: () => void;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
+  isLoading?: boolean;
+  authError?: string | null;
 }
 
-export const LandingScreen: React.FC<LandingScreenProps> = ({ onEnter, theme, toggleTheme }) => {
+export const LandingScreen: React.FC<LandingScreenProps> = ({ 
+  onEnter, 
+  onEnterGuest, 
+  theme, 
+  toggleTheme,
+  isLoading = false,
+  authError = null
+}) => {
   return (
     <div className={`relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden transition-colors duration-700 ${
       theme === 'dark' ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-slate-900'
@@ -152,6 +162,36 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onEnter, theme, to
             Click to Establish Neural Link
           </motion.div>
         </div>
+
+        {/* Auth Loading / Error Status & Fallback Button */}
+        {isLoading ? (
+          <div className="mt-28 text-center animate-pulse">
+            <span className="text-xs font-mono text-indigo-400 uppercase tracking-widest">
+              Establishing Neural Link...
+            </span>
+          </div>
+        ) : authError ? (
+          <div className="mt-28 max-w-md mx-auto text-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl backdrop-blur-md flex flex-col items-center gap-3">
+            <p className="text-xs font-mono text-red-400 leading-relaxed">
+              Auth Interrupted: {authError.includes('popup-closed-by-user') ? 'Sign-in popup closed by user' : authError}
+            </p>
+            <button
+              onClick={onEnterGuest}
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-mono text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
+            >
+              Bypass via Guest Mode
+            </button>
+          </div>
+        ) : (
+          <div className="mt-28 flex flex-col items-center gap-4">
+            <button
+              onClick={onEnterGuest}
+              className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-400 hover:text-white font-mono text-[9px] font-bold uppercase tracking-widest rounded-lg transition-all active:scale-95"
+            >
+              Or Enter as Guest (Offline/Local)
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Theme Toggle Bottom Right */}
