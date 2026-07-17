@@ -1,21 +1,93 @@
 {
-  "entities": {
-    "User": {
-      "title": "User",
-      "description": "A user of the application",
-      "type": "object",
-      "properties": {
-        "email": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" }
-      },
-      "required": ["email", "createdAt", "updatedAt"]
-    }
-  },
-  "firestore": {
-    "users/{userId}": {
-      "schema": "User",
-      "description": "User profiles"
+  "collections": {
+    "llm_requests": {
+      "description": "Log of all LLM API calls for cost and performance tracking",
+      "fields": {
+        "timestamp": { "type": "timestamp", "required": true },
+        "provider": { "type": "string", "required": true },
+        "model": { "type": "string", "required": true },
+        "success": { "type": "boolean", "required": true },
+        "durationMs": { "type": "number", "required": true },
+        "traceId": { "type": "string", "required": false },
+        "errorMessage": { "type": "string", "required": false }
+      }
+    },
+    "system_logs": {
+      "description": "Root level error and system event logs",
+      "fields": {
+        "timestamp": { "type": "timestamp", "required": true },
+        "message": { "type": "string", "required": true },
+        "stack": { "type": "string", "required": false },
+        "url": { "type": "string", "required": false },
+        "method": { "type": "string", "required": false },
+        "requestId": { "type": "string", "required": false },
+        "traceId": { "type": "string", "required": false },
+        "type": { "type": "string", "required": true }
+      }
+    },
+    "system_health": {
+      "description": "Orchestrator health metrics and maintenance actions",
+      "fields": {
+        "userId": { "type": "string", "required": true },
+        "timestamp": { "type": "number", "required": true },
+        "memoryUsageRatio": { "type": "number", "required": true },
+        "cpuLoad": { "type": "number", "required": true },
+        "actionTaken": { "type": "string", "required": true },
+        "geminiLatencyMs": { "type": "number", "required": true }
+      }
+    },
+    "knowledge_base": {
+      "description": "RAG text embeddings and raw contents",
+      "fields": {
+        "text": { "type": "string", "required": true },
+        "embedding": { "type": "array", "required": true },
+        "timestamp": { "type": "number", "required": true }
+      }
+    },
+    "users": {
+      "description": "Scope for user data including personal memories, conversations, and custom logs",
+      "subcollections": {
+        "memories": {
+          "description": "User memories extracted during chats or entered manually",
+          "fields": {
+            "text": { "type": "string", "required": true },
+            "timestamp": { "type": "number", "required": true },
+            "strength": { "type": "number", "required": true },
+            "tags": { "type": "array", "required": false },
+            "pinned": { "type": "boolean", "required": false }
+          }
+        },
+        "chats": {
+          "description": "Chat message history per user session",
+          "fields": {
+            "role": { "type": "string", "required": true },
+            "content": { "type": "string", "required": false },
+            "timestamp": { "type": "number", "required": true },
+            "cognitiveLog": { "type": "map", "required": false },
+            "debateLog": { "type": "array", "required": false },
+            "selfAnalysis": { "type": "string", "required": false },
+            "suggestedShortcuts": { "type": "array", "required": false }
+          }
+        },
+        "system_logs": {
+          "description": "Action telemetry and brain logs per user",
+          "fields": {
+            "timestamp": { "type": "number", "required": true },
+            "level": { "type": "string", "required": true },
+            "source": { "type": "string", "required": true },
+            "message": { "type": "string", "required": true }
+          }
+        },
+        "persona": {
+          "description": "User defined custom persona",
+          "fields": {
+            "name": { "type": "string", "required": true },
+            "description": { "type": "string", "required": true },
+            "signature": { "type": "string", "required": true },
+            "updatedAt": { "type": "number", "required": true }
+          }
+        }
+      }
     }
   }
 }

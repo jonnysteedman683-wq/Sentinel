@@ -1,9 +1,8 @@
 {
-  "name": "Sentinel",
-  "description": "A persistent self-improving agent.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Arcane Quantum Brain",
+  "description": "A self-evolving multi-agent cognitive system with active inference, federated learning, and collective unconscious dreaming.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

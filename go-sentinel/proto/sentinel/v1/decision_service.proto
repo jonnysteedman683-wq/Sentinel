@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package sentinel.decision.v1;
+
+import "proto/sentinel/v1/events.proto";
+
+service DecisionService {
+  rpc GetAction(GetActionRequest) returns (GetActionResponse);
+}
+
+message GetActionRequest {
+  string tenant_id = 1;
+  string client_request_id = 2;
+  map<string, sentinel.events.v1.FeatureValue> context = 3;
+  map<string, string> options = 4;
+}
+
+message GetActionResponse {
+  string decision_id = 1;
+  string tenant_id = 2;
+  string action = 3;
+  double propensity = 4;
+  string policy_id = 5;
+  map<string, sentinel.events.v1.FeatureValue> context_used = 6;
+}

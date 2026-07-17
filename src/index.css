@@ -1,38 +1,52 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-display: "Space Grotesk", "Inter", sans-serif;
-}
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  
+  --animate-pulse-slow: pulse-slow 3s ease-in-out infinite;
+  --animate-breathe: breathe 2s ease-in-out infinite;
+  --animate-spin-slow: spin-slow 8s linear infinite;
+  --animate-glow-gold: glow-gold 2s ease-in-out infinite;
+  --animate-gradient-x: gradient-x 3s ease infinite;
 
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes spin-slow {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes glow-gold {
+    0%, 100% { box-shadow: 0 0 5px #f59e0b, 0 0 20px #f59e0b; }
+    50% { box-shadow: 0 0 20px #f59e0b, 0 0 40px #f59e0b; }
+  }
+  @keyframes gradient-x {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes insight-pulse {
+    0% { r: 8; opacity: 1; }
+    50% { r: 12; opacity: 0.4; }
+    100% { r: 8; opacity: 1; }
   }
 }
 
+.insight-highlight {
+  animation: insight-pulse 1.5s infinite;
+}
+
 body {
-  background-color: #020617; /* slate-950 */
-  color: #cbd5e1; /* slate-300 */
+  @apply bg-[#0a0a0f] text-slate-200 antialiased;
+  --app-hue: 220; /* Default blue-ish hue */
+  transition: --app-hue 1s ease-in-out;
 }
 
-/* Scrollbar customization */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.5); /* slate-700 with opacity */
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 0.8); /* slate-600 */
+.sentiment-themed {
+  border-color: hsl(var(--app-hue), 70%, 50%);
 }

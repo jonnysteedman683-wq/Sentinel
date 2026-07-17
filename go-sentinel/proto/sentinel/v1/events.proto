@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package sentinel.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message DecisionEvent {
+  string tenant_id = 1;
+  string decision_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  map<string, FeatureValue> context_features = 4;
+  string action = 5;
+  double propensity = 6;
+  repeated ActionProbability action_probabilities = 7;
+  string policy_id = 8;
+  string model_snapshot_id = 9;
+  string experiment_id = 10;
+  map<string, string> metadata = 11;
+}
+
+message ActionProbability {
+  string action = 1;
+  double probability = 2;
+}
+
+message FeatureValue {
+  oneof kind {
+    double numeric = 1;
+    string categorical = 2;
+    NumericVector numeric_vector = 3;
+    string embedding_name = 4;
+  }
+}
+
+message NumericVector {
+  repeated double values = 1;
+}

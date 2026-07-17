@@ -1,161 +1,98 @@
-import Dexie, { type Table } from 'dexie';
-import type { Episode, SemanticEntry, SkillCard, Identity, AutonomyAction, ActionStatus, AgentProfile, PromptEntry } from './types';
+import { Dexie, type EntityTable } from 'dexie';
+import { Episode, SemanticEntry, SkillCard, Identity } from './types.ts';
+
+// We map the requested schema names to the types
+export interface EpisodicMemory extends Episode {}
+export interface SemanticMemory extends SemanticEntry {}
+export interface SkillLibrary extends SkillCard {}
+export interface IdentityLog extends Identity {
+  id: string; // Add id for Dexie primary key
+  timestamp: number;
+}
 
 export class SentinelDatabase extends Dexie {
-  episodes!: Table<Episode, string>;
-  semanticEntries!: Table<SemanticEntry, string>;
-  skills!: Table<SkillCard, string>;
-  identities!: Table<Identity, string>;
-  actions!: Table<AutonomyAction, string>;
-  agents!: Table<AgentProfile, string>;
-  prompts!: Table<PromptEntry, string>;
-  banditArms!: Table<any, number>;
-  banditDecisions!: Table<any, number>;
+  episodicMemory!: EntityTable<EpisodicMemory, 'id'>;
+  semanticMemory!: EntityTable<SemanticMemory, 'id'>;
+  skillLibrary!: EntityTable<SkillLibrary, 'id'>;
+  identityLog!: EntityTable<IdentityLog, 'id'>;
 
   constructor() {
     super('SentinelDB');
-    
-    // Define schemas. 'id' is the primary key. *tags creates a multi-entry index for arrays.
     this.version(1).stores({
-      episodes: 'id, type, timestamp, *tags',
-      semanticEntries: 'id, timestamp, retrievalCount, *tags',
-      skills: 'id, name, successScore, lastUpdated',
-      identities: 'id, version, lastUpdated',
-      actions: 'id, status, tier, timestamp'
-    });
-    
-    // Version 2 for vector embeddings
-    this.version(2).stores({
-      episodes: 'id, type, timestamp, *tags, embedding',
-      semanticEntries: 'id, timestamp, retrievalCount, *tags, embedding'
-    });
-
-    // Version 3 for Agents & Prompts
-    this.version(3).stores({
-      agents: 'id, name, role, status, createdAt',
-      prompts: 'id, title, *tags, createdAt'
-    });
-
-    // Version 4 for Skill Tree hierarchy
-    this.version(4).stores({
-      skills: 'id, name, successScore, lastUpdated, parentId, upgradesFromId'
-    }).upgrade(tx => {
-       return tx.table('skills').toCollection().modify(skill => {
-           if (skill.tier === undefined) skill.tier = 1;
-       });
-    });
-
-    // Version 5 for Multi-Armed Bandit state
-    this.version(5).stores({
-      banditArms: '++id, agentId, taskType, [agentId+taskType], updatedAt',
-      banditDecisions: '++id, agentId, taskType, timestamp',
+      episodicMemory: 'id, timestamp, trigger, outcome',
+      semanticMemory: 'id, concept, strength, lastAccessed',
+      skillLibrary: 'id, name, successRate, useCount, lastUsed',
+      identityLog: 'id, timestamp'
     });
   }
 }
 
 export const db = new SentinelDatabase();
 
-// ==========================================
-// EPISODIC MEMORY
-// ==========================================
-export async function addEpisode(episode: Omit<Episode, 'id'>): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.episodes.add({ ...episode, id });
-  return id;
+// --- CRUD Functions for EpisodicMemory ---
+export async function addEpisodicMemory(episode: EpisodicMemory): Promise<string> {
+  return await db.episodicMemory.add(episode);
 }
 
-export async function getAllEpisodes(): Promise<Episode[]> {
-  return db.episodes.orderBy('timestamp').reverse().toArray();
+export async function getEpisodicMemory(id: string): Promise<EpisodicMemory | undefined> {
+  return await db.episodicMemory.get(id);
 }
 
-export async function getEpisodesByTimeRange(start: number, end: number): Promise<Episode[]> {
-  return db.episodes.where('timestamp').between(start, end).toArray();
+export async function updateEpisodicMemory(id: string, changes: Partial<EpisodicMemory>): Promise<number> {
+  return await db.episodicMemory.update(id, changes);
 }
 
-export async function deleteEpisodes(ids: string[]): Promise<void> {
-  await db.episodes.bulkDelete(ids);
+export async function deleteEpisodicMemory(id: string): Promise<void> {
+  return await db.episodicMemory.delete(id);
 }
 
-// ==========================================
-// SEMANTIC MEMORY
-// ==========================================
-export async function addSemanticEntry(entry: Omit<SemanticEntry, 'id'>): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.semanticEntries.add({ ...entry, id });
-  return id;
+// --- CRUD Functions for SemanticMemory ---
+export async function addSemanticMemory(entry: SemanticMemory): Promise<string> {
+  return await db.semanticMemory.add(entry);
 }
 
-export async function getAllSemanticEntries(): Promise<SemanticEntry[]> {
-  return db.semanticEntries.orderBy('timestamp').reverse().toArray();
+export async function getSemanticMemory(id: string): Promise<SemanticMemory | undefined> {
+  return await db.semanticMemory.get(id);
 }
 
-export async function incrementRetrievalCount(id: string): Promise<void> {
-  const entry = await db.semanticEntries.get(id);
-  if (entry) {
-    await db.semanticEntries.update(id, { retrievalCount: entry.retrievalCount + 1 });
-  }
+export async function updateSemanticMemory(id: string, changes: Partial<SemanticMemory>): Promise<number> {
+  return await db.semanticMemory.update(id, changes);
 }
 
-export async function deleteSemanticEntries(ids: string[]): Promise<void> {
-  await db.semanticEntries.bulkDelete(ids);
+export async function deleteSemanticMemory(id: string): Promise<void> {
+  return await db.semanticMemory.delete(id);
 }
 
-// ==========================================
-// SKILLS
-// ==========================================
-export async function addSkill(skill: Omit<SkillCard, 'id'>): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.skills.add({ ...skill, id });
-  return id;
+// --- CRUD Functions for SkillLibrary ---
+export async function addSkill(skill: SkillLibrary): Promise<string> {
+  return await db.skillLibrary.add(skill);
 }
 
-export async function updateSkill(id: string, updates: Partial<SkillCard>): Promise<void> {
-  await db.skills.update(id, { ...updates, lastUpdated: Date.now() });
+export async function getSkill(id: string): Promise<SkillLibrary | undefined> {
+  return await db.skillLibrary.get(id);
 }
 
-export async function getSkill(id: string): Promise<SkillCard | undefined> {
-  return db.skills.get(id);
+export async function updateSkill(id: string, changes: Partial<SkillLibrary>): Promise<number> {
+  return await db.skillLibrary.update(id, changes);
 }
 
-export async function getAllSkills(): Promise<SkillCard[]> {
-  return db.skills.orderBy('successScore').reverse().toArray();
+export async function deleteSkill(id: string): Promise<void> {
+  return await db.skillLibrary.delete(id);
 }
 
-// ==========================================
-// IDENTITY
-// ==========================================
-export async function getLatestIdentity(): Promise<Identity | undefined> {
-  const identities = await db.identities.orderBy('version').reverse().limit(1).toArray();
-  return identities[0];
+// --- CRUD Functions for IdentityLog ---
+export async function addIdentityLog(log: IdentityLog): Promise<string> {
+  return await db.identityLog.add(log);
 }
 
-export async function saveIdentity(identity: Omit<Identity, 'id'>): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.identities.add({ ...identity, id });
-  return id;
+export async function getIdentityLog(id: string): Promise<IdentityLog | undefined> {
+  return await db.identityLog.get(id);
 }
 
-export async function getIdentityHistory(): Promise<Identity[]> {
-  return db.identities.orderBy('version').reverse().toArray();
+export async function updateIdentityLog(id: string, changes: Partial<IdentityLog>): Promise<number> {
+  return await db.identityLog.update(id, changes);
 }
 
-// ==========================================
-// AUTONOMY ACTIONS
-// ==========================================
-export async function addAction(action: Omit<AutonomyAction, 'id'>): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.actions.add({ ...action, id });
-  return id;
-}
-
-export async function updateActionStatus(id: string, status: ActionStatus): Promise<void> {
-  await db.actions.update(id, { status });
-}
-
-export async function getActionsByStatus(status: ActionStatus): Promise<AutonomyAction[]> {
-  return db.actions.where('status').equals(status).reverse().sortBy('timestamp');
-}
-
-export async function getAllActions(): Promise<AutonomyAction[]> {
-  return db.actions.orderBy('timestamp').reverse().toArray();
+export async function deleteIdentityLog(id: string): Promise<void> {
+  return await db.identityLog.delete(id);
 }
