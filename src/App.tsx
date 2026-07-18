@@ -5,9 +5,16 @@ import { TypewriterText } from "./components/TypewriterText.js";
 import { PolicyConvergenceChart } from "./components/PolicyConvergenceChart.js";
 import { MemoryTab } from "./components/tabs/MemoryTab.js";
 import { BrainsTab } from "./components/tabs/BrainsTab.js";
+import { IdentityTab } from "./components/tabs/IdentityTab.js";
+import { GoalFormationUI } from "./components/tabs/GoalFormationUI.js";
+import { SystemDiagnosticsUI } from "./components/tabs/SystemDiagnosticsUI.js";
+import { LiveCompiler } from "./components/tabs/LiveCompiler.js";
+import { DiffViewer } from "./components/tabs/DiffViewer.js";
 import { InfoTooltip } from "./components/InfoTooltip.js";
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { handleSlashCommand, CommandContext } from './lib/CommandDelegator.js';
+import { UnconsciousBackground } from './components/UnconsciousBackground.js';
+import { SubagentDebateArena } from './components/SubagentDebateArena.js';
 import { HelpWidget, VitalsWidget, LogsWidget, DiagnosticWidget, RebootWidget } from './components/CommandWidgets.js';
 import { QpuErdWidget } from './components/QpuErdWidget.js';
 import { SelfHealingErrorCard } from './components/SelfHealingErrorCard.js';
@@ -16,7 +23,7 @@ import { LocalOnlyModeBanner } from './components/LocalOnlyModeBanner.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
-import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare } from 'lucide-react';
+import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split } from 'lucide-react';
 import VitalsDashboard from "./components/VitalsDashboard.js";
 import { SentimentDriftChart } from "./components/SentimentDriftChart.js";
 import { MindMap } from "./components/MindMap.js";
@@ -24,16 +31,20 @@ import { CuriousAgent } from './lib/rl-agent.js';
 import { Brainstorm } from './components/Brainstorm.js';
 import { NeuralIntentPanel } from "./components/NeuralIntentPanel.js";
 // import { NeuralDebugger } from './components/NeuralDebugger.js';
-// import { MemoriaDashboard } from './components/MemoriaDashboard.js';
-
-// import { ExecutiveIntegrationNode } from './components/ExecutiveIntegrationNode.js';
 import { LandingScreen } from './components/LandingScreen.js';
 import { AutoDebugger } from './components/AutoDebugger.js';
 import TelemetryDashboard from './components/TelemetryDashboard.js';
+import SandboxPanel from './components/SandboxPanel.js';
+import SwarmVisualizer from './components/SwarmVisualizer.js';
+import CognitiveCanvas from './components/CognitiveCanvas.js';
+import DreamCinema from './components/DreamCinema.js';
+import { PredictiveRolloutPanel } from './components/PredictiveRolloutPanel.js';
 import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
 import { ConsolidationSuggestion, ConsolidationProposal } from './components/ConsolidationSuggestion.js';
+import { VoiceBridge } from './components/VoiceBridge.js';
 import { OnboardingWizard } from './components/OnboardingWizard.js';
 import InsightReveal from './components/InsightReveal.js';
+import { ReasoningTree } from './components/ReasoningTree.js';
 import InsightFeed from './components/InsightFeed.js';
 import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, InsightData, ingestTelemetry } from './lib/api.js';
 import { auth, db, googleSignIn, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
@@ -41,7 +52,7 @@ import { ContextMenu } from './components/ContextMenu.js';
 
 type ModelState = 'Idle' | 'Listening' | 'Reasoning' | 'Learning' | 'Nudging' | 'Consolidating' | 'Inspired' | 'Syncing';
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
-type SidebarTab = 'Chat' | 'Memory' | 'Brains' | 'Heartbeat' | 'Mind Map' | 'Brainstorm' | 'Logs' | 'Telemetry' | 'Neural Debugger' | 'Memoria' | 'Workspace';
+type SidebarTab = 'Chat' | 'Memory' | 'Identity' | 'Brains' | 'Heartbeat' | 'Mind Map' | 'Brainstorm' | 'Logs' | 'Telemetry' | 'Neural Debugger' | 'Memoria' | 'Workspace' | 'Goals' | 'Diagnostics' | 'Sandbox' | 'Swarm' | 'Dream Cinema';
 
 type PersonaId = 'AQB_STANDARD' | 'ARCHITECT' | 'PHILOSOPHER' | 'GHOST' | 'NIHILIST' | 'ZEALOT';
 
@@ -115,6 +126,10 @@ interface Message {
     agent: string;
     text: string;
   }[];
+  superpositionBranches?: {
+    name: string;
+    text: string;
+  }[];
   suggestedShortcuts?: string[];
   isTyping?: boolean;
   systemUI?: 'help' | 'vitals' | 'logs' | 'diagnose' | 'reboot' | 'error-card' | 'persona' | 'qpu-erd';
@@ -133,6 +148,8 @@ export interface Memory {
   sentiment?: number;
   lastAccessed?: number;
   embedding?: number[];
+  superpositionSummaries?: { text: string; probability: number }[];
+  entangledId?: string;
 }
 
 interface Skill {
@@ -169,7 +186,7 @@ function MainApp() {
   const isApiUnreachable = errors.some(e => e.error.code === 'GEMINI_API_FAILURE');
   const [modelState, setModelState] = useState<ModelState>('Idle');
   const [activeInsight, setActiveInsight] = useState<InsightData | null>(null);
-  const [appView, setAppView] = useState<'landing' | 'dashboard'>('landing');
+  const [appView, setAppView] = useState<'landing' | 'dashboard'>('dashboard');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -267,11 +284,33 @@ function MainApp() {
 
   const [depth, setDepth] = useState<CognitionDepth>('Balanced');
   const [isDebateMode, setIsDebateMode] = useState(false);
+  const [isSuperpositionMode, setIsSuperpositionMode] = useState(false);
   const [debateState, sendDebate] = useMachine(debateMachine);
 
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>('Chat');
+  const [chatLayout, setChatLayout] = useState<'linear' | 'canvas'>('linear');
+  const [circadianState, setCircadianState] = useState<{ hour: number; multiplier: number; phase: string }>({
+    hour: new Date().getHours(),
+    multiplier: 1.0,
+    phase: 'ACTIVE (PROCESSING)'
+  });
+  const [proposedEvolution, setProposedEvolution] = useState<{fileName: string, proposedCode: string} | null>(null);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+
+  useEffect(() => {
+    const calcCircadian = () => {
+      const hr = new Date().getHours();
+      const timeFactor = (hr / 24.0) * 2 * Math.PI;
+      const arousal = 0.5 - Math.cos(timeFactor) * 0.4;
+      const mult = Math.max(0.2, 1.5 - arousal);
+      const phs = (hr < 6 || hr > 21) ? 'RESTING (RECEPTIVE)' : 'ACTIVE (PROCESSING)';
+      setCircadianState({ hour: hr, multiplier: mult, phase: phs });
+    };
+    calcCircadian();
+    const interval = setInterval(calcCircadian, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Global Keyboard Shortcuts
   const shortcuts = useMemo(() => ({
@@ -372,10 +411,33 @@ function MainApp() {
     }
   };
   
-  const [user, setUser] = useState<any>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'ai', content: 'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?', isTyping: false }
-  ]);
+  const [user, setUser] = useState<any>({ uid: 'local_user', isAnonymous: true });
+  const [threads, setThreads] = useState<Record<string, Message[]>>({
+    'main': [{ id: '1', role: 'ai', content: 'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?', isTyping: false }]
+  });
+  const [activeThreadId, setActiveThreadId] = useState<string>('main');
+
+  const messages = threads[activeThreadId] || [];
+  const setMessages = (updater: any) => {
+    setThreads(prev => {
+      const current = prev[activeThreadId] || [];
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      return { ...prev, [activeThreadId]: next };
+    });
+  };
+
+  const handleBranchThread = (msgId: string) => {
+    const targetIdx = messages.findIndex(m => m.id === msgId);
+    if (targetIdx === -1) return;
+    const newThreadId = `thread_${Date.now()}`;
+    const branchedHistory = messages.slice(0, targetIdx + 1);
+    setThreads(prev => ({
+      ...prev,
+      [newThreadId]: branchedHistory
+    }));
+    setActiveThreadId(newThreadId);
+    addLog(`Branched new timeline: ${newThreadId}`, 'SYSTEM', 'COGNITIVE', `tr_${Math.random().toString(36).substring(2, 11)}`);
+  };
 
   // Synchronize debateMachine outcomes with Chat Messages and System Logs
   useEffect(() => {
@@ -615,8 +677,7 @@ function MainApp() {
       });
       
       if (res.ok) {
-        const data = await res.json();
-        setTelemetryLogCount(data.count || 0);
+        setTelemetryLogCount(prev => prev + 1);
         fetchPredictions(contextVector);
       }
     } catch (err) {
@@ -663,16 +724,7 @@ function MainApp() {
   }, []);
 
   // Authenticate user
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+  // Auth state listener removed to allow free local access
 
   // Seed default data if new user
   useEffect(() => {
@@ -766,7 +818,31 @@ function MainApp() {
           embedding: data.embedding || undefined
         });
       });
-      setMemories(fetchedMemories);
+      // Inject mock superposition and entanglement states into the first two memories for showcase
+      const mapped = fetchedMemories.map((m, idx) => {
+        if (idx === 0) {
+          return {
+            ...m,
+            superpositionSummaries: [
+              { text: "Option Alpha: Stabilized neural latency in sector 7.", probability: 0.75 },
+              { text: "Option Beta: Re-routing network traffic away from sector 7.", probability: 0.25 }
+            ],
+            entangledId: fetchedMemories[1]?.id
+          };
+        }
+        if (idx === 1) {
+          return {
+            ...m,
+            superpositionSummaries: [
+              { text: "Dialectics: Subjective time is a key coefficient of cognitive loads.", probability: 0.8 },
+              { text: "Axiom: Temporal perception decays under massive load.", probability: 0.2 },
+            ],
+            entangledId: fetchedMemories[0]?.id
+          };
+        }
+        return m;
+      });
+      setMemories(mapped);
 
       // Auto-seed if empty and first time checking
       if (fetchedMemories.length === 0 && !sessionStorage.getItem(`seeded_${user.uid}`)) {
@@ -901,7 +977,7 @@ function MainApp() {
     }
   }, [debouncedSearchQuery]);
 
-  const [memoryViewMode, setMemoryViewMode] = useState<'list' | 'timeline' | 'graph' | '3d'>('list');
+  const [memoryViewMode, setMemoryViewMode] = useState<'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills'>('list');
   const [isConsolidating, setIsConsolidating] = useState(false);
   
   // Bulk selection and actions
@@ -918,8 +994,11 @@ function MainApp() {
   const handleManualConsolidateRef = useRef<(() => Promise<void>) | null>(null);
   const [agentStats, setAgentStats] = useState({ epsilon: 1.0, episodes: 0, lastAction: -1 });
   const [cognitiveMode, setCognitiveMode] = useState<'HRL' | 'ActiveInference'>('HRL');
+  const [usePolicyNet, setUsePolicyNet] = useState(true);
   const [efeScore, setEfeScore] = useState<number>(0);
+  const [curiosityVector, setCuriosityVector] = useState<number[]>([0,0,0,0]);
   const [policyConfidence, setPolicyConfidence] = useState<number>(0);
+  const [textToSpeak, setTextToSpeak] = useState<string | null>(null);
   const [nudgeMemory, setNudgeMemory] = useState<NudgeMemory | null>(null);
   const [consolidationProposal, setConsolidationProposal] = useState<ConsolidationProposal | null>(null);
 
@@ -1079,6 +1158,14 @@ function MainApp() {
           const agent = rlAgent.current;
           const state = agent.getState();
           const decision = await agent.selectActionHRL(state);
+          
+          try {
+            const actionIdx = decision.index ?? 0;
+            const cVec = agent.getCuriosityVector(state, actionIdx);
+            setCuriosityVector(cVec);
+          } catch (e) {
+            // Ignore if forward model isn't ready
+          }
           
           if (decision.type === 'option') {
             const opt = agent.options.get!(decision.optionId!);
@@ -1252,13 +1339,14 @@ function MainApp() {
     }, 75);
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
     rlAgent.current?.applyDelayedInsightReward(0.1);
-    if (!input.trim() || (modelState !== 'Idle' && modelState !== 'Listening')) return;
+    const targetText = overrideText || input;
+    if (!targetText.trim() || (modelState !== 'Idle' && modelState !== 'Listening')) return;
 
-    const userText = input.trim();
-    setInput('');
+    const userText = targetText.trim();
+    if (!overrideText) setInput('');
     const traceId = `tr_${Math.random().toString(36).substring(2, 11)}`;
     logInteraction('initiate_chat', { textLength: userText.length, traceId });
     
@@ -1402,6 +1490,13 @@ function MainApp() {
         return;
       }
 
+      if (userText.toLowerCase().startsWith('/swarm ')) {
+        setActiveTab('Swarm');
+        addLog(`Routing task to Autonomous Agentic Swarm...`, 'NEURAL', 'ENGINE', traceId);
+        setModelState('Idle');
+        return;
+      }
+
       setModelState('Reasoning');
       addLog(`Switching to ${depth} cognition mode...`, 'NEURAL', 'ENGINE', traceId);
       
@@ -1410,8 +1505,71 @@ function MainApp() {
         content: m.content
       }));
 
-      const apiEndpoint = isDebateMode ? '/api/debate' : '/api/chat';
-      const response = await fetch(apiEndpoint, {
+      let response: Response;
+
+      if (depth === 'Deep Reasoning') {
+        response = await fetch('/api/fractal-think', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: userText })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const mappedBranches = data.branches.map((b: string, i: number) => ({
+            name: `Hypothesis ${i+1}`,
+            text: b
+          }));
+
+          const aiMessageData = {
+            role: 'ai' as const,
+            content: data.synthesis,
+            selfAnalysis: "Applied Tree-of-Thoughts to synthesize multiple hypotheses.",
+            cognitiveLog: `Fractal Core explored ${data.branches.length} branches.`,
+            debateLog: null,
+            superpositionBranches: mappedBranches,
+            suggestedShortcuts: [],
+            systemUI: null,
+            systemUIData: null,
+            timestamp: Date.now(),
+            traceId,
+            isTyping: true
+          };
+
+          if (data.selfEvolution) {
+            setProposedEvolution({
+                fileName: data.selfEvolution.targetFile,
+                proposedCode: data.selfEvolution.proposedCode
+            });
+            aiMessageData.systemUI = "selfEvolution";
+            addLog(`Self-evolution proposed for ${data.selfEvolution.targetFile}`, 'WARN', 'SYSTEM', traceId);
+          }
+          
+          if (user) {
+            try {
+              const chatsRef = collection(db, "users", user.uid, "chats");
+              const aiDocRef = doc(chatsRef);
+              const { isTyping, ...saveData } = aiMessageData;
+              
+              setMessages(prev => {
+                if (prev.some(m => m.id === aiDocRef.id)) return prev;
+                return [...prev, { id: aiDocRef.id, ...aiMessageData }];
+              });
+              await setDoc(aiDocRef, saveData);
+            } catch (e) {
+              setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
+            }
+          } else {
+            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
+          }
+          
+          setModelState('Idle');
+          return;
+        }
+      }
+
+      const apiEndpoint = isSuperpositionMode ? '/api/chat/superposition' : (isDebateMode ? '/api/debate' : '/api/chat');
+      response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1435,6 +1593,7 @@ function MainApp() {
       const data = await response.json();
       addLog(`Response generated via ${apiEndpoint}`, 'INFO', 'API', traceId);
       if (data.debateLog) addLog(`Multi-agent consensus reached.`, 'NEURAL', 'DEBATE', traceId);
+      if (data.branches) addLog(`Quantum superposition collapsed into definitive answer.`, 'NEURAL', 'ENGINE', traceId);
       
       if (data.needsReset) {
           addLog("Triggering reset: AI greeting/repetition detected.", "WARN", "SYSTEM");
@@ -1458,21 +1617,17 @@ function MainApp() {
           }
       }
       
-      if (isTtsEnabled && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(data.text);
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
+      if (data.text || data.collapsedResponse) {
+        setTextToSpeak(data.text || data.collapsedResponse);
       }
       
       const aiMessageData = {
         role: 'ai' as const,
-        content: data.text,
+        content: data.text || data.collapsedResponse,
         selfAnalysis: data.selfAnalysis || "",
         cognitiveLog: data.cognitiveLog || null,
         debateLog: data.debateLog || null,
+        superpositionBranches: data.branches || null,
         suggestedShortcuts: data.suggestedShortcuts || [],
         systemUI: data.systemUI || null,
         systemUIData: data.systemUIData || null,
@@ -1480,6 +1635,15 @@ function MainApp() {
         traceId,
         isTyping: true
       };
+
+      if (data.selfEvolution) {
+        setProposedEvolution({
+            fileName: data.selfEvolution.targetFile,
+            proposedCode: data.selfEvolution.proposedCode
+        });
+        aiMessageData.systemUI = "selfEvolution";
+        addLog(`Self-evolution proposed for ${data.selfEvolution.targetFile}`, 'WARN', 'SYSTEM', traceId);
+      }
 
       if (user) {
         try {
@@ -1645,6 +1809,32 @@ function MainApp() {
       setModelState('Idle');
     }
   };
+
+  const handleSpeechRecognized = useCallback((text: string) => {
+    handleSend(undefined, text);
+  }, [handleSend]);
+
+  const collapseMemoryWavefunction = useCallback((id: string) => {
+    setMemories(prev => prev.map(m => {
+      if (m.id === id && m.superpositionSummaries && m.superpositionSummaries.length > 0) {
+        const sorted = [...m.superpositionSummaries].sort((a, b) => b.probability - a.probability);
+        const collapsedText = sorted[0].text;
+        addLog(`Wavefunction collapsed for memory [${id}]. settled on: "${collapsedText}"`, 'NEURAL', 'QUANTUM');
+        
+        // Entangled cascade collapse
+        if (m.entangledId) {
+          setTimeout(() => collapseMemoryWavefunction(m.entangledId!), 250);
+        }
+        
+        return {
+          ...m,
+          text: collapsedText,
+          superpositionSummaries: undefined
+        };
+      }
+      return m;
+    }));
+  }, []);
 
   const [isTagging, setIsTagging] = useState(false);
 
@@ -2164,7 +2354,7 @@ function MainApp() {
             setIsAuthLoading(true);
             setAuthError(null);
             try {
-              await googleSignIn();
+              await anonymousSignIn();
             } catch (error: any) {
               console.error("Sign in failed:", error);
               setAuthError(error?.message || String(error));
@@ -2173,7 +2363,7 @@ function MainApp() {
             }
             setIsAuthLoading(false);
           }
-          addLog("Neural connection established via Google Auth.", "NEURAL", "BRIDGE");
+          addLog("Neural connection established freely.", "NEURAL", "BRIDGE");
           sessionStartTime.current = Date.now();
           lastActivity.current = Date.now();
           setAppView('dashboard');
@@ -2217,23 +2407,16 @@ function MainApp() {
       )}
       
       {/* 1. Ambient Background Layer */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute inset-0 opacity-40 transition-opacity duration-1000"
-          style={{
-            background: theme === 'dark' 
-              ? 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.15) 0%, rgba(99,102,241,0.15) 30%, #0a0a0f 70%)'
-              : 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.1) 0%, rgba(99,102,241,0.1) 30%, #f8fafc 70%)',
-            animation: 'pulse 8s infinite alternate ease-in-out'
-          }} 
-        />
-      </div>
+      <UnconsciousBackground 
+        theme={theme} 
+        cognitiveLoad={depth === 'Superficial' ? 0.2 : depth === 'Balanced' ? 0.5 : 0.9} 
+        efeScore={efeScore} 
+      />
 
       {/* 2. Glass UI Layer */}
       <div className="flex z-10 w-full h-full relative backdrop-blur-[2px]">
         
         {/* Left Rail: Memory & Skills Panel */}
-                {/* Narrow Sidebar Navigation */}
         <nav className={`w-16 md:w-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/60'} backdrop-blur-md overflow-hidden flex flex-col items-center py-4 z-30`}>
            <div className="relative flex items-center justify-center w-10 h-10 mb-4 cursor-pointer" onClick={() => setSidebarOpen(!isSidebarOpen)}>
              <svg viewBox="0 0 24 24" className={`w-full h-full stroke-amber-400 ${theme === 'dark' ? 'fill-amber-950/50' : 'fill-amber-100/50'}`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2250,6 +2433,24 @@ function MainApp() {
              </button>
              <button onClick={() => handleTabChange('Memory')} title="Memory" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memory' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Brain className={`w-5 h-5 ${isConsolidating ? 'animate-pulse text-teal-300' : ''}`} />
+             </button>
+             <button onClick={() => handleTabChange('Identity')} title="Identity" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Identity' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Fingerprint className="w-5 h-5" />
+             </button>
+             <button onClick={() => handleTabChange('Goals')} title="Goals" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Goals' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Target className="w-5 h-5" />
+             </button>
+             <button onClick={() => handleTabChange('Diagnostics')} title="Diagnostics" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Diagnostics' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Stethoscope className="w-5 h-5" />
+             </button>
+             <button onClick={() => handleTabChange('Swarm')} title="Agentic Swarm" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Swarm' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Network className="w-5 h-5" />
+             </button>
+             <button onClick={() => handleTabChange('Dream Cinema')} title="Dream Cinema" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Dream Cinema' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Film className="w-5 h-5" />
+             </button>
+             <button onClick={() => handleTabChange('Sandbox')} title="Sandbox" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Sandbox' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+               <Code2 className="w-5 h-5" />
              </button>
              <button onClick={() => handleTabChange('Brains')} title="Brains" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brains' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Cpu className="w-5 h-5" />
@@ -2282,7 +2483,6 @@ function MainApp() {
         </nav>
 
         {/* Main Content Area */}
-                {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 relative h-full">
           {/* Top Bar */}
           <header className={`h-16 border-b ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-black/5 bg-white/40'} backdrop-blur-sm flex items-center justify-between px-6 flex-shrink-0 z-20`}>
@@ -2308,12 +2508,47 @@ function MainApp() {
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
                       Status: {modelState}
                     </span>
+                    <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-medium ml-3 border-l border-white/10 pl-3">
+                      Circadian: {circadianState.phase} ({circadianState.multiplier.toFixed(1)}x)
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
+              {activeTab === 'Chat' && (
+                <div className="flex items-center gap-1.5 mr-3 bg-white/5 border border-white/10 rounded-lg p-1.5">
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold font-mono">Timeline:</span>
+                  <select
+                    value={activeThreadId}
+                    onChange={(e) => setActiveThreadId(e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[9px] font-bold font-mono text-teal-400 focus:outline-none focus:border-teal-500/50"
+                  >
+                    {Object.keys(threads).map((tid) => (
+                      <option key={tid} value={tid} className="bg-slate-900 text-teal-300">
+                        {tid === 'main' ? 'Main' : `Timeline-${tid.split('_')[1]?.substring(0, 4) || tid.substring(0, 5)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {activeTab === 'Chat' && (
+                <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5 mr-2">
+                  <button 
+                    onClick={() => setChatLayout('linear')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${chatLayout === 'linear' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Linear
+                  </button>
+                  <button 
+                    onClick={() => setChatLayout('canvas')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${chatLayout === 'canvas' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Canvas
+                  </button>
+                </div>
+              )}
               {activeTab === 'Chat' && (
                 <button 
                   onClick={clearChat}
@@ -2343,10 +2578,21 @@ function MainApp() {
               >
             {activeTab === 'Chat' ? (
               <>
-                <div className="flex-1 overflow-hidden relative flex flex-col">
+                {chatLayout === 'canvas' ? (
+                  <div className="flex-grow w-full h-[550px] min-h-[400px] p-4 overflow-hidden relative z-10">
+                    <CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp }))} />
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-hidden relative flex flex-col">
 {/* Center Presence Orb */}
             <div className="absolute inset-0 flex items-center justify-center z-0">
-              <PresenceOrb state={modelState} depth={depth} isSpeaking={isSpeaking} cognitiveLoad={Math.min(1, Math.max(0, efeScore))} />
+              {/* Cognitive load incorporates efeScore, consolidation state, and deep processing state */}
+              <PresenceOrb 
+                state={modelState} 
+                depth={depth} 
+                isSpeaking={isSpeaking} 
+                cognitiveLoad={Math.min(1, Math.max(0, efeScore + (isConsolidating ? 0.3 : 0) + (modelState === 'Reasoning' || modelState === 'Learning' ? 0.2 : 0)))} 
+              />
             </div>
           <InsightReveal 
             insight={activeInsight}
@@ -2360,7 +2606,18 @@ function MainApp() {
             <div className="flex-1 overflow-y-auto p-6 z-10 scroll-smooth">
               <div className="max-w-3xl mx-auto space-y-8 pb-10">
                 {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                  <div key={msg.id} className={`group relative flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                    <button
+                      onClick={() => handleBranchThread(msg.id)}
+                      className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-xl border border-white/10 bg-black/60 text-slate-400 hover:text-fuchsia-400 hover:border-fuchsia-500/30 transition-all z-20 ${
+                        msg.role === 'user'
+                          ? 'left-0 -translate-x-12'
+                          : 'right-0 translate-x-12'
+                      }`}
+                      title="Branch timeline from this message"
+                    >
+                      <Split className="w-4 h-4" />
+                    </button>
                     <div className="flex flex-col gap-2 w-full max-w-full">
                       {msg.content && msg.content !== "{}" && msg.content !== '""' && (
                         <div 
@@ -2391,8 +2648,12 @@ function MainApp() {
                                   />
                                 </div>
                               </div>
-                              {msg.cognitiveLog && (
-                                <div className="mt-4 border-t border-white/5 pt-4">
+                                {msg.superpositionBranches && msg.superpositionBranches.length > 0 && (
+                                  <ReasoningTree branches={msg.superpositionBranches} synthesis={msg.content} />
+                                )}
+                                
+                                {msg.cognitiveLog && (
+                                  <div className="mt-4 border-t border-white/5 pt-4">
                                   <details className="group/cog">
                                     <summary className="flex items-center gap-2 cursor-pointer text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-400 transition-colors list-none">
                                       <div className="p-1 rounded-md bg-white/5 group-hover/cog:bg-indigo-500/20 transition-colors">
@@ -2599,28 +2860,13 @@ function MainApp() {
                       </div>
                     </div>
 
-                    {/* Current logs generated so far */}
+                    {/* Subagent Debate Arena rendered here during Reasoning/Debate mode */}
                     {debateState.context.debateLog.length > 0 && (
-                      <div className="space-y-2 border-t border-white/5 pt-3">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Live Transcript Logs</span>
-                        <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
-                          {debateState.context.debateLog.map((log, idx) => (
-                            <div key={idx} className="p-2.5 rounded-lg bg-white/5 border border-white/5">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[9px] font-bold text-teal-400 uppercase tracking-wider">
-                                  {log.agent}
-                                </span>
-                                <span className="text-[8px] font-mono text-slate-500 uppercase tracking-tight">
-                                  Move: {log.move}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-400 italic leading-relaxed line-clamp-2">
-                                "{log.text}"
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <SubagentDebateArena 
+                        logs={debateState.context.debateLog} 
+                        theme={theme} 
+                        isComplete={debateState.matches('complete') || debateState.matches('idle')}
+                      />
                     )}
                   </div>
                 )}
@@ -2647,6 +2893,7 @@ function MainApp() {
               </div>
             </div>
           </div>
+        )}
 
           {/* Bottom Control Bar */}
           <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md z-20">
@@ -2691,6 +2938,24 @@ function MainApp() {
                     >
                       <div className={`w-2 h-2 rounded-full ${isDebateMode ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`} />
                       {isDebateMode ? 'ACTIVE' : 'OFF'}
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-col border-l border-white/5 pl-6">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
+                      <Zap className="w-3 h-3" /> Superposition
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsSuperpositionMode(!isSuperpositionMode)}
+                      className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-wider rounded-md transition-all border ${
+                        isSuperpositionMode 
+                          ? 'bg-fuchsia-500/40 text-fuchsia-100 border-fuchsia-400' 
+                          : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'
+                      }`}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${isSuperpositionMode ? 'bg-fuchsia-400 animate-pulse' : 'bg-slate-600'}`} />
+                      {isSuperpositionMode ? 'ACTIVE' : 'OFF'}
                     </button>
                   </div>
                 </div>
@@ -2954,7 +3219,7 @@ function MainApp() {
               </div>
               ) : activeTab === 'Mind Map' ? (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full w-full flex flex-col gap-4 overflow-y-auto pb-10">
-                <MindMap memories={memories} theme={theme as any} />
+                <MindMap memories={memories} theme={theme as any} onCollapseWavefunction={collapseMemoryWavefunction} />
               </div>
             ) : activeTab === 'Brainstorm' ? (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full">
@@ -2963,6 +3228,64 @@ function MainApp() {
                   onAddMemory={addMemoryDirectly} 
                   addLog={addLog}
                 />
+              </div>
+            ) : activeTab === 'Identity' ? (
+              <div className="h-full w-full">
+                <IdentityTab theme={theme} />
+              </div>
+            ) : activeTab === 'Goals' ? (
+              <div className="h-full w-full">
+                <GoalFormationUI theme={theme} handleSend={handleSend} handleTabChange={setActiveTab} />
+              </div>
+            ) : activeTab === 'Diagnostics' ? (
+              <SystemDiagnosticsUI theme={theme} />
+            ) : activeTab === 'Swarm' ? (
+              <SwarmVisualizer initialTask={input.startsWith('/swarm ') ? input.replace('/swarm ', '') : undefined} />
+            ) : activeTab === 'Dream Cinema' ? (
+              <DreamCinema theme={theme} />
+            ) : activeTab === 'Sandbox' ? (
+              <div className="h-full w-full p-6 flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-300 overflow-y-auto">
+                <div className="h-[400px] flex-shrink-0">
+                  <LiveCompiler theme={theme} />
+                </div>
+                <div className="h-[400px] flex-shrink-0">
+                  {proposedEvolution ? (
+                    <DiffViewer 
+                      fileName={proposedEvolution.fileName} 
+                      originalCode="// Loading original file... (Local only)\\n// In a production app, we would fetch the current code to show the diff." 
+                      proposedCode={proposedEvolution.proposedCode} 
+                      onApprove={async () => {
+                        addLog(`Approving evolution for ${proposedEvolution.fileName}...`, "INFO", "SYSTEM");
+                        try {
+                          const res = await fetch('/api/system/evolve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(proposedEvolution)
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            addLog(`Successfully evolved ${proposedEvolution.fileName}. Reloading...`, "INFO", "SYSTEM");
+                            setProposedEvolution(null);
+                          } else {
+                            addLog(`Failed to evolve: ${data.error}`, "ERROR", "SYSTEM");
+                          }
+                        } catch (e: any) {
+                          addLog(`Failed to evolve: ${e.message}`, "ERROR", "SYSTEM");
+                        }
+                      }} 
+                      onReject={() => {
+                        addLog("Evolution rejected.", "WARN", "SYSTEM");
+                        setProposedEvolution(null);
+                      }} 
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500">
+                      <Code2 size={48} className="mb-4 opacity-50" />
+                      <p className="font-mono text-sm">No self-evolution proposed.</p>
+                      <p className="text-xs mt-2 opacity-60">The AI will populate this when it proposes architectural changes.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : activeTab === 'Logs' ? (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full max-h-[calc(100vh-180px)]">
@@ -3003,13 +3326,22 @@ function MainApp() {
                 </div>
               </div>
               ) : activeTab === 'Telemetry' ? (
-                <TelemetryDashboard 
-                  theme={theme} 
-                  cognitiveMode={cognitiveMode}
-                  onModeChange={setCognitiveMode}
-                  efeScore={efeScore}
-                  policyConfidence={policyConfidence}
-                />
+                <div className="space-y-6">
+                  <TelemetryDashboard 
+                    theme={theme} 
+                    activeOptionName={rlAgent.current?.activeOption?.name}
+                    cognitiveMode={cognitiveMode}
+                    onModeChange={setCognitiveMode}
+                    efeScore={efeScore}
+                    usePolicyNet={usePolicyNet}
+                    onTogglePolicyNet={setUsePolicyNet}
+                    curiosityVector={curiosityVector}
+                    policyConfidence={policyConfidence}
+                  />
+                  <PredictiveRolloutPanel
+                    initialState={rlAgent.current?.getState()}
+                  />
+                </div>
               ) : null}
             </div>
           )}
@@ -3172,6 +3504,11 @@ function MainApp() {
           onConfirm={handleConsolidationConfirm}
           onDismiss={handleConsolidationDismiss}
           onTimeout={handleConsolidationTimeout}
+        />
+
+        <VoiceBridge 
+          onSpeechRecognized={handleSpeechRecognized} 
+          textToSpeak={textToSpeak} 
         />
 
       </div>

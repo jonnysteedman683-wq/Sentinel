@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Network, RefreshCw, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { Network, RefreshCw, Loader2, Box } from 'lucide-react';
 import * as d3 from 'd3';
 import { sphericalKMeans } from '../lib/clustering.js';
+
+const KnowledgeGraph3D = lazy(() => import('./KnowledgeGraph3D.js'));
 
 interface KBNode extends d3.SimulationNodeDatum { id: string; text: string; source: string; embedding: number[]; cluster: number; px_init: number; py_init: number; }
 interface Edge extends d3.SimulationLinkDatum<KBNode> { sim: number; }
@@ -76,6 +78,7 @@ export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelPro
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<KBNode | null>(null);
+  const [is3D, setIs3D] = useState(false);
   const simRef = useRef<d3.Simulation<KBNode, Edge> | null>(null);
 
   const load = () => {
@@ -149,7 +152,7 @@ export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelPro
   useEffect(() => { load(); }, [memories]);
 
   useEffect(() => {
-    if (nodes.length < 2) return;
+    if (nodes.length < 2 || is3D) return;
     
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext('2d')!;
@@ -175,9 +178,29 @@ export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelPro
         for (const e of edges) {
           const s = e.source as KBNode;
           const t = e.target as KBNode;
-          ctx.strokeStyle = `rgba(34, 211, 238, ${(e.sim - SIM_THRESHOLD) / (1 - SIM_THRESHOLD) * 0.5 + 0.1})`;
-          ctx.lineWidth = 1;
+          const isEntangled = e.sim >= 0.9;
+          
+          if (isEntangled) {
+            ctx.strokeStyle = `rgba(217, 70, 239, ${(e.sim - SIM_THRESHOLD) / (1 - SIM_THRESHOLD) * 0.8 + 0.2})`; // fuchsia
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#d946ef';
+            ctx.shadowBlur = 8;
+            
+            // Add a slight wave/dash for quantum effect
+            ctx.setLineDash([5, 5]);
+          } else {
+            ctx.strokeStyle = `rgba(34, 211, 238, ${(e.sim - SIM_THRESHOLD) / (1 - SIM_THRESHOLD) * 0.5 + 0.1})`; // cyan
+            ctx.lineWidth = 1;
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.setLineDash([]);
+          }
+          
           ctx.beginPath(); ctx.moveTo(s.x || 0, s.y || 0); ctx.lineTo(t.x || 0, t.y || 0); ctx.stroke();
+          
+          // Reset shadow for nodes
+          ctx.shadowBlur = 0;
+          ctx.setLineDash([]);
         }
         
         // nodes
@@ -201,7 +224,7 @@ export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelPro
     return () => {
       if (simRef.current) simRef.current.stop();
     };
-  }, [nodes, edges, hover]);
+  }, [nodes, edges, hover, is3D]);
 
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -224,21 +247,39 @@ export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelPro
           <h3 className="text-sm font-semibold tracking-wide uppercase">Knowledge Graph</h3>
           <span className="text-xs text-slate-500">{nodes.length} nodes · {edges.length} links</span>
         </div>
-        <button onClick={load} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-400 transition-colors">
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setIs3D(!is3D)} 
+            className={`p-1.5 rounded-lg flex items-center gap-1 transition-colors text-xs font-semibold uppercase tracking-wider ${
+              is3D ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'hover:bg-cyan-500/10 text-cyan-600 border border-transparent'
+            }`}
+          >
+            <Box size={14} /> 3D
+          </button>
+          <button onClick={load} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-400 transition-colors">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          </button>
+        </div>
       </div>
       <div className="relative">
-        <canvas ref={canvasRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)}
-          className="w-full rounded-xl bg-slate-950/80 border border-slate-800" style={{ aspectRatio: '3/2' }} />
-        {hover && (
-          <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-slate-900/95 border border-cyan-500/30 p-2 text-xs">
-            <p className="text-cyan-300 font-mono mb-0.5" style={{ color: COLORS[hover.cluster % COLORS.length] }}>Cluster {hover.cluster}</p>
-            <p className="text-slate-300 line-clamp-2">{hover.text}</p>
-          </div>
-        )}
-        {!loading && nodes.length < 2 && (
-          <p className="absolute inset-0 grid place-items-center text-slate-500 text-sm">Need ≥2 embedded documents</p>
+        {is3D ? (
+          <Suspense fallback={<div className="w-full aspect-[3/2] grid place-items-center text-cyan-500"><Loader2 className="animate-spin" /></div>}>
+            <KnowledgeGraph3D memories={memories} />
+          </Suspense>
+        ) : (
+          <>
+            <canvas ref={canvasRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)}
+              className="w-full rounded-xl bg-slate-950/80 border border-slate-800" style={{ aspectRatio: '3/2' }} />
+            {hover && (
+              <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-slate-900/95 border border-cyan-500/30 p-2 text-xs backdrop-blur-md pointer-events-none">
+                <p className="text-cyan-300 font-mono mb-0.5 font-bold tracking-widest" style={{ color: COLORS[hover.cluster % COLORS.length] }}>Cluster {hover.cluster}</p>
+                <p className="text-slate-300 line-clamp-2">{hover.text}</p>
+              </div>
+            )}
+            {!loading && nodes.length < 2 && (
+              <p className="absolute inset-0 grid place-items-center text-slate-500 text-sm">Need ≥2 embedded documents</p>
+            )}
+          </>
         )}
       </div>
     </div>

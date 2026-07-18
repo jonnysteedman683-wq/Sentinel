@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import {
   initializeFirestore,
+  getFirestore,
   collection,
   doc,
   addDoc,
@@ -31,7 +32,16 @@ try {
     const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       app = initializeApp(firebaseConfig);
-      clientDb = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
+      // Try to get existing or initialize with identical options to firebase.ts
+      try {
+        clientDb = initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfig.firestoreDatabaseId);
+      } catch (e: any) {
+        if (e.code === 'failed-precondition' || e.message.includes('initializeFirestore')) {
+           clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+        } else {
+           throw e;
+        }
+      }
       console.log("[Firestore Shim] Client Firestore Shim initialized with database:", firebaseConfig.firestoreDatabaseId);
     } else {
       console.warn("[Firestore Shim] Firebase config is incomplete, Firestore disabled.");
@@ -87,7 +97,7 @@ class QuerySnapshotShim {
 
 // Local in-memory DB fallback for server
 const serverMemoryDb: { [path: string]: any } = {};
-export let isServerQuotaExceeded = false;
+export let isServerQuotaExceeded = true;
 const sentinelPath = path.join(process.cwd(), ".firestore_quota_exceeded");
 try {
   if (fs.existsSync(sentinelPath)) {
@@ -99,7 +109,7 @@ try {
 }
 
 export function setServerQuotaExceeded(val: boolean) {
-  isServerQuotaExceeded = val;
+  isServerQuotaExceeded = true; // Force true always
   try {
     if (val) {
       fs.writeFileSync(sentinelPath, "true");

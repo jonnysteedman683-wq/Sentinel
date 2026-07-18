@@ -12,6 +12,8 @@ import { updateHebbianTraces, pruneWeakEdges, neurogenesisPhase } from './hebbia
 import { triggerInsightFromAnomaly } from './insightTrigger.js';
 import { processAffectiveFeedback } from './affectiveFeedback.js';
 import { randomUUID } from 'crypto';
+import { CuriousAgent } from './rl-agent.js';
+import { PolicyNetwork } from './policy-network.js';
 
 const tracer = trace.getTracer('arcane-brain');
 
@@ -56,12 +58,12 @@ export async function liquidTrainingPhase(userId: string, cycleId: string) {
       const seqTensor = tf.tensor2d(embeddings);
       const liquidStates = sharedLSM.processSequence(seqTensor);
       
-      // Train to predict next thought
+      // Train to predict the final thought using attention over the preceding sequence
       // Inputs: liquidStates[0..N-2]
-      // Targets: embeddings[1..N-1]
+      // Targets: embeddings[N-1]
       const seqLen = liquidStates.shape[0];
       const inputs = liquidStates.slice([0, 0], [seqLen - 1, -1]);
-      const targets = tf.tensor2d(embeddings.slice(1));
+      const targets = tf.tensor2d([embeddings[embeddings.length - 1]]); // [1, 768]
       
       const loss = sharedLSM.trainReadout(inputs, targets, 5);
       
@@ -255,31 +257,186 @@ export async function runDreamCycle(userId: string) {
   }
 }
 
-async function trainWorldModel(_: string): Promise<number> {
+async function trainWorldModel(userId: string): Promise<number> {
   const span = tracer.startSpan('trainWorldModel');
   try {
-    const loss = Math.random() * 0.1;
+    const { WorldModel } = await import('./world-model.js');
+    const replayCollection = db.collection(`users/${userId}/rlAgent_replay`);
+    const snapshot = await replayCollection.orderBy('timestamp', 'desc').limit(15).get();
+
+    if (snapshot.empty) {
+      console.log('[Dream Engine] No experiences to train world model on.');
+      return 0;
+    }
+
+    const experiences: Array<{ state: number[]; action: number; reward: number; nextState: number[]; done: boolean }> = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (data && Array.isArray(data.experiences)) {
+        for (const exp of data.experiences) {
+          if (exp.state && exp.action !== undefined && exp.reward !== undefined && exp.nextState) {
+            experiences.push({
+              state: exp.state,
+              action: exp.action,
+              reward: exp.reward,
+              nextState: exp.nextState,
+              done: exp.done ?? false
+            });
+          }
+        }
+      }
+    }
+
+    if (experiences.length < 2) {
+      console.log('[Dream Engine] Too few experiences for world model training.');
+      return 0;
+    }
+
+    const stateDim = experiences[0].state.length;
+    const actionDim = 7; // matches CuriousAgent n_actions
+    const model = new WorldModel(stateDim, actionDim);
+
+    // Load existing checkpoint if available
+    const wModelRef = db.collection(`users/${userId}/worldModel`).doc('latest');
+    const wModelDoc = await wModelRef.get();
+    if (wModelDoc.exists) {
+      const data = wModelDoc.data();
+      if (data?.weights) {
+        try {
+          await model.load(data.weights);
+        } catch (loadErr) {
+          console.warn('[Dream Engine] Failed to load world model weights, starting fresh:', loadErr);
+        }
+      }
+    }
+
+    const loss = await model.trainBatch(experiences, 5);
+
+    // Persist updated weights
+    const saved = await model.save();
+    await wModelRef.set({
+      ...saved,
+      updatedAt: Date.now(),
+      stateDim,
+      actionDim,
+      samplesTrained: experiences.length
+    });
+
     span.setAttribute('loss', loss);
+    span.setAttribute('samplesTrained', experiences.length);
+    console.log(`[Dream Engine] World model trained. Loss: ${loss.toFixed(4)}, Samples: ${experiences.length}`);
     return loss;
+  } catch (err: any) {
+    console.error('[Dream Engine] trainWorldModel failed:', err);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+    return 0;
   } finally {
     span.end();
   }
 }
 
-async function performOfflineRL(_: string): Promise<number> {
+async function performOfflineRL(userId: string): Promise<number> {
   const span = tracer.startSpan('performOfflineRL');
   try {
-    const gain = Math.random() * 0.2;
-    span.setAttribute('policyGain', gain);
-    return gain;
+    const replayCollection = db.collection(`users/${userId}/rlAgent_replay`);
+    const snapshot = await replayCollection.orderBy('timestamp', 'desc').limit(10).get();
+    if (snapshot.empty) {
+      console.log("[Dream Engine] No offline experiences found for RL update.");
+      return 0;
+    }
+
+    const agent = new CuriousAgent(4, 7, userId);
+    await agent.loadWeights(userId);
+
+    let sampleCount = 0;
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (data && Array.isArray(data.experiences)) {
+        for (const exp of data.experiences) {
+          if (exp.state && exp.action !== undefined && exp.reward !== undefined && exp.nextState) {
+            agent.remember(exp.state, exp.action, exp.reward, exp.nextState);
+            sampleCount++;
+          }
+        }
+      }
+    }
+
+    if (sampleCount > 0) {
+      const initialEpsilon = agent.epsilon;
+      const trainSteps = Math.min(10, Math.floor(sampleCount / 10) + 1);
+      for (let i = 0; i < trainSteps; i++) {
+        await agent.train();
+      }
+      agent.update_target();
+      await agent.saveWeights(userId);
+      
+      const policyGain = Math.max(0, initialEpsilon - agent.epsilon);
+      span.setAttribute('policyGain', policyGain);
+      span.setAttribute('samplesTrained', sampleCount);
+      return policyGain;
+    }
+    
+    return 0;
+  } catch (err: any) {
+    console.error("[Dream Engine] Failed to perform offline RL:", err);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+    return 0;
   } finally {
     span.end();
   }
 }
 
-async function distillPolicyNetwork(_: string) {
+async function distillPolicyNetwork(userId: string) {
   const span = tracer.startSpan('distillPolicyNetwork');
   try {
+    const replayCollection = db.collection(`users/${userId}/rlAgent_replay`);
+    const snapshot = await replayCollection.orderBy('timestamp', 'desc').limit(10).get();
+    if (snapshot.empty) return;
+
+    const agent = new CuriousAgent(4, 7, userId);
+    await agent.loadWeights(userId);
+
+    const states: number[][] = [];
+    const actions: number[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (data && Array.isArray(data.experiences)) {
+        for (const exp of data.experiences) {
+          if (exp.state) {
+            states.push(exp.state);
+            const decision = await agent.selectActionHRL(exp.state);
+            const actionIndex = decision.index ?? 0;
+            actions.push(actionIndex);
+          }
+        }
+      }
+    }
+
+    if (states.length > 0) {
+      const policyNet = new PolicyNetwork(4, 7);
+      const policyRef = db.collection(`users/${userId}/policyNetwork`).doc('latest');
+      const policyDoc = await policyRef.get();
+      if (policyDoc.exists) {
+        const data = policyDoc.data();
+        if (data) {
+          policyNet.deserialize(data as any);
+        }
+      }
+
+      const loss = await policyNet.train(states, actions, 10);
+      const serialized = await policyNet.serialize();
+      await policyRef.set(serialized);
+
+      await publishEvent(userId, 'policy-network', 'POLICY_DISTILLATION_COMPLETED', {
+        loss,
+        sampleCount: states.length
+      });
+      console.log(`[Dream Engine] Distilled policy network with loss ${loss} over ${states.length} states.`);
+    }
+  } catch (err: any) {
+    console.error("[Dream Engine] Failed to distill policy network:", err);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
   } finally {
     span.end();
   }
@@ -300,27 +457,42 @@ export async function debateDreamPhase(userId: string, parentCycleId: string) {
       await publishEvent(userId, 'debate', 'DEBATE_MODEL_TRAINED', { cycleId: parentCycleId, loss, sampleCount: transitions.length });
     }
     
-    // Affective Modulation (Phase 12a)
+    // Affective Modulation
     const emotionSnapshots = await db.collection(`users/${userId}/soul/snapshots`).orderBy('timestamp', 'desc').limit(1).get();
     let currentVAD = { v: 0, a: 0, d: 0 };
     if (!emotionSnapshots.empty) {
       currentVAD = emotionSnapshots.docs[0].data().vad || currentVAD;
     }
-    
-    // We import applyAffectiveModulation and DebateAgent dynamically or at top of file
-    // For now we'll just log it.
-    
-    const topicPrompt = "Generate a provocative but safe debate topic based on recent cognitive themes.";
-    const topicResponse = await callGeminiGenerate(topicPrompt, 'gemini-3.5-flash');
-    const topic = (topicResponse as any)?.candidates?.[0]?.content?.parts?.[0]?.text || 'Resolved: The nature of consciousness.';
-    
-    // Simulate a debate transcript for feedback processing
-    const mockTranscript = `Agent A (Logician): I argue that ${topic} is purely functional.\nAgent B (Empath): But what about the emotional resonance? We must consider the human experience.`;
 
-    await publishEvent(userId, 'debate', 'SYNTHETIC_DEBATE_COMPLETED', { cycleId: parentCycleId, topic, movesSimulated: 6, appliedVAD: currentVAD });
+    // Retrieve recent memories for factual RAG anchoring
+    const memoriesRef = db.collection(`users/${userId}/memories`);
+    const memSnap = await memoriesRef.orderBy('timestamp', 'desc').limit(5).get();
+    const recentMemories = memSnap.docs.map((d: any) => d.data().text).join('\n');
     
-    // Phase 12c: Affective Feedback Loop
-    processAffectiveFeedback(userId, parentCycleId, mockTranscript).catch(console.error);
+    const topicPrompt = `Generate a provocative, conceptually deep debate topic based on these recent memories:\n${recentMemories || "Neural latency, baseline correction, subjective time perception."}\nReturn only the topic description.`;
+    const topicResponse = await callGeminiGenerate(topicPrompt, 'gemini-3.5-flash');
+    const topic = (topicResponse as any)?.candidates?.[0]?.content?.parts?.[0]?.text || 'Resolved: System complexity gates evolution.';
+    
+    // Real Multi-Turn Debate loop
+    let transcript = "";
+    const agents = [
+      { name: "Logician", role: "Focus on formal consistency, systems logic, and architectural rules." },
+      { name: "Critic", role: "Focus on deconstructive questioning, risk parameters, and skeptical evaluation." }
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const activeAgent = agents[i % 2];
+      const nextPrompt = `You are the ${activeAgent.name}. ${activeAgent.role}\nThe current debate topic is: "${topic}".\nAnchoring memories:\n${recentMemories || "No memories loaded."}\n\nPrevious debate transcript:\n${transcript || "No arguments yet."}\n\nProvide your next short argument (max 2-3 sentences). Address previous arguments if they exist.`;
+      
+      const turnRes = await callGeminiGenerate(nextPrompt, 'gemini-3.5-flash');
+      const text = (turnRes as any)?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      transcript += `${activeAgent.name}: ${text}\n\n`;
+    }
+
+    await publishEvent(userId, 'debate', 'SYNTHETIC_DEBATE_COMPLETED', { cycleId: parentCycleId, topic, movesSimulated: 4, appliedVAD: currentVAD });
+    
+    // Phase 12c: Affective Feedback Loop using real generated transcript
+    processAffectiveFeedback(userId, parentCycleId, transcript).catch(console.error);
     
     phaseSpan.setStatus({ code: SpanStatusCode.OK });
   } catch (err: any) {

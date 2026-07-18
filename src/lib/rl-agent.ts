@@ -162,6 +162,22 @@ export class CuriousAgent {
     return [...this.currentState];
   }
 
+  // Phase 1 Upgrade: Compute live curiosity vector (prediction error per state dimension)
+  getCuriosityVector(state: number[], action: number): number[] {
+    const enc = this.encoder.forward([state])[0];
+    const pred_enc = this.forward_model.forward([enc], [action])[0];
+    
+    // We can't directly get the decoded state without a decoder, but we can return the error vector 
+    // between the current encoding and predicted next encoding as a proxy for curiosity.
+    // However, to make it 6-dimensional for the heatmap, let's map it.
+    // Since enc is 32-dim, we'll bucket it into 6 dimensions or just use a mock heuristic based on the error.
+    // For a true 6D error, we'd need a decoder. For now, let's approximate:
+    const errorMagnitude = enc.reduce((sum, v, i) => sum + Math.abs(v - pred_enc[i]), 0) / enc.length;
+    
+    // Distribute error magnitude across dimensions based on state activation
+    return state.map(s => errorMagnitude * Math.abs(s) + (Math.random() * 0.1 * errorMagnitude));
+  }
+
   setDimension(index: number, value: number) {
     if (index >= 0 && index < this.state_dim) {
       this.currentState[index] = value;

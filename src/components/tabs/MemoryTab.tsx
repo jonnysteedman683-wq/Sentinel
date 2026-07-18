@@ -1,13 +1,16 @@
 import React from 'react';
 import { 
   Brain, Search, CheckSquare, 
-  Square, Trash2, Zap, Pin, Lightbulb, Loader2, ChevronDown, Plus 
+  Square, Trash2, Zap, Pin, Lightbulb, Loader2, ChevronDown, Plus, Paperclip 
 } from 'lucide-react';
 import { MemoryChart } from '../MemoryChart.js';
 import { MemoryForceGraph } from '../MemoryForceGraph.js';
 import { MemoryGraph3D } from '../MemoryGraph3D.js';
+import { EpisodeTimeline } from '../EpisodeTimeline.js';
 import { formatTimeAgo } from '../../lib/utils.js';
 import { Memory } from '../../App.js';
+import DreamCinema from '../DreamCinema.js';
+import { SkillEvolutionGraph } from '../SkillEvolutionGraph.js';
 
 export interface MemoryTabProps {
 
@@ -22,8 +25,8 @@ export interface MemoryTabProps {
   newMemory: string;
   setNewMemory: (val: string) => void;
 
-  memoryViewMode: 'list' | 'timeline' | 'graph' | '3d';
-  setMemoryViewMode: (mode: 'list' | 'timeline' | 'graph' | '3d') => void;
+  memoryViewMode: 'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills';
+  setMemoryViewMode: (mode: 'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills') => void;
   isConsolidating: boolean;
   memories: Memory[];
   handleManualConsolidate: () => void;
@@ -67,6 +70,59 @@ export const MemoryTab: React.FC<MemoryTabProps> = (props) => {
     removeMemory,  setSelectedMemoryIds
   } = props;
 
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = React.useState(false);
+
+  const processImageBase64 = async (base64: string, mimeType: string) => {
+    setIsProcessingImage(true);
+    try {
+      const res = await fetch('/api/memory/multimodal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mimeType })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewMemory(data.summary);
+      }
+    } catch (e) {
+      console.error("Failed to process visual memory:", e);
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        processImageBase64(reader.result, file.type);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleInputPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === 'string') {
+              processImageBase64(reader.result, file.type);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-left-4 duration-300">
               <div className="animate-in fade-in slide-in-from-left-4 duration-300">
@@ -104,6 +160,22 @@ export const MemoryTab: React.FC<MemoryTabProps> = (props) => {
                     >
                       3D Graph
                     </button>
+                    <button
+                      onClick={() => setMemoryViewMode('episodes')}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        memoryViewMode === 'episodes' ? 'bg-teal-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      Episodes
+                    </button>
+                    <button
+                      onClick={() => setMemoryViewMode('skills')}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        memoryViewMode === 'skills' ? 'bg-teal-500 text-white' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      Skills
+                    </button>
                   </div>
                   <button
                     onClick={handleManualConsolidate}
@@ -128,11 +200,9 @@ export const MemoryTab: React.FC<MemoryTabProps> = (props) => {
                   </button>
                 </div>
 
-                {isConsolidating && (
-                  <div className="mb-4 text-xs text-teal-400/80 font-mono flex items-center gap-2 bg-teal-500/10 p-2 rounded-lg border border-teal-500/20">
-                    <Brain className="w-3 h-3 animate-spin" style={{ animationDuration: '3s' }} /> Consolidating core memory...
-                  </div>
-                )}
+                {isConsolidating ? (
+                  <DreamCinema memories={memories} isConsolidating={isConsolidating} />
+                ) : null}
 
                 {memoryViewMode === 'list' ? (
                   <>
@@ -611,6 +681,14 @@ export const MemoryTab: React.FC<MemoryTabProps> = (props) => {
                   <div className="mb-6">
                     <MemoryForceGraph memories={memories} />
                   </div>
+                ) : memoryViewMode === 'episodes' ? (
+                  <div className="mb-6">
+                    <EpisodeTimeline />
+                  </div>
+                ) : memoryViewMode === 'skills' ? (
+                  <div className="mb-6">
+                    <SkillEvolutionGraph />
+                  </div>
                 ) : (
                   <div className="mb-6">
                     <MemoryGraph3D memories={memories} />
@@ -619,15 +697,40 @@ export const MemoryTab: React.FC<MemoryTabProps> = (props) => {
 
                 <form onSubmit={handleAddMemory} className="relative">
                   <input 
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <input 
                     type="text" 
                     value={newMemory}
                     onChange={e => setNewMemory(e.target.value)}
-                    placeholder="Inject new context..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg py-3 px-4 text-sm focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-slate-600"
+                    onPaste={handleInputPaste}
+                    placeholder={isProcessingImage ? "Decoding visual memory..." : "Inject new context (paste images here)..."}
+                    disabled={isProcessingImage}
+                    className="w-full bg-black/50 border border-white/10 rounded-lg py-3 pl-4 pr-16 text-sm focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-slate-600 disabled:opacity-50"
                   />
-                  <button type="submit" className="absolute right-2 top-2 p-1 text-slate-500 hover:text-teal-400 transition-colors">
-                    <Plus className="w-5 h-5" />
-                  </button>
+                  <div className="absolute right-2 top-2.5 flex items-center gap-1.5">
+                    {isProcessingImage ? (
+                      <Loader2 className="w-5 h-5 text-teal-400 animate-spin" />
+                    ) : (
+                      <>
+                        <button 
+                          type="button" 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-1 text-slate-500 hover:text-teal-400 transition-colors"
+                          title="Upload Image"
+                        >
+                          <Paperclip className="w-4 h-4" />
+                        </button>
+                        <button type="submit" className="p-1 text-slate-500 hover:text-teal-400 transition-colors">
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </form>
               </div>
     </div>

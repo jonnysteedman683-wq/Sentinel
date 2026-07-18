@@ -17,7 +17,9 @@ export const PresenceOrb: React.FC<{ state: ModelState; depth: CognitionDepth; i
 
     const render = () => {
       // Depth affects animation speed
-      const speedMultiplier = depth === 'Fast' ? 1.5 : depth === 'Deep Reasoning' ? 0.5 : 1;
+      // Increase speed significantly if cognitive load is high
+      const loadSpeedBoost = 1 + (cognitiveLoad * 1.5);
+      const speedMultiplier = (depth === 'Fast' ? 1.5 : depth === 'Deep Reasoning' ? 0.5 : 1) * loadSpeedBoost;
       const baseSpeed = state === 'Reasoning' ? 0.05 : state === 'Listening' ? 0.08 : state === 'Syncing' ? 0.06 : 0.02;
       time += baseSpeed * speedMultiplier;
       
@@ -28,14 +30,25 @@ export const PresenceOrb: React.FC<{ state: ModelState; depth: CognitionDepth; i
       
       // Base layer
       for (let i = 0; i < 3; i++) {
+        // Draw an organic wobbly blob instead of a perfect circle
         ctx.beginPath();
-        // Ripple effect when listening, breathing when idle
+        const numBlobPoints = 60;
         const ripple = state === 'Listening' ? Math.sin(time * 3 + i) * 5 : 0;
-        const speakRipple = isSpeaking ? Math.sin(time * 15 + i * 2) * Math.random() * 8 : 0; // simulating vocal amplitude
+        const speakRipple = isSpeaking ? Math.sin(time * 15 + i * 2) * Math.random() * 8 : 0;
         const breathe = Math.sin(time + i * Math.PI / 1.5) * 15;
         const radius = 80 + breathe + ripple + speakRipple;
-        
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+
+        for (let j = 0; j <= numBlobPoints; j++) {
+          const angle = (j * Math.PI * 2) / numBlobPoints;
+          // Warp shape depending on cognitive load
+          const warp = Math.sin(angle * (5 + i) + time * 3) * (20 * cognitiveLoad);
+          const r = radius + warp;
+          const x = centerX + Math.cos(angle) * r;
+          const y = centerY + Math.sin(angle) * r;
+          if (j === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
         
         // Color shifts based on state and depth
         let hue1 = 200; // Blue (Idle)
@@ -65,6 +78,15 @@ export const PresenceOrb: React.FC<{ state: ModelState; depth: CognitionDepth; i
         } else if (isSpeaking) {
           hue1 = 320; // Pinkish/Purple for speaking
           hue2 = 280;
+        }
+
+        // Apply cognitive load color override (shift towards red/amber under high load)
+        if (cognitiveLoad > 0.85) {
+          hue1 = 0; // Red
+          hue2 = 20; // Orange-red
+        } else if (cognitiveLoad > 0.65) {
+          hue1 = 30; // Orange
+          hue2 = 45; // Amber
         }
         
         const gradient = ctx.createLinearGradient(
@@ -124,7 +146,14 @@ export const PresenceOrb: React.FC<{ state: ModelState; depth: CognitionDepth; i
       ctx.arc(centerX, centerY, coreRadius, 0, 2 * Math.PI);
       const coreGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius);
       
-      const coreHue = state === 'Reasoning' ? 260 : state === 'Listening' ? 320 : state === 'Nudging' ? 250 : state === 'Consolidating' ? 290 : state === 'Syncing' ? 195 : isSpeaking ? 280 : 200;
+      let coreHue = state === 'Reasoning' ? 260 : state === 'Listening' ? 320 : state === 'Nudging' ? 250 : state === 'Consolidating' ? 290 : state === 'Syncing' ? 195 : isSpeaking ? 280 : 200;
+      
+      if (cognitiveLoad > 0.85) {
+        coreHue = 0;
+      } else if (cognitiveLoad > 0.65) {
+        coreHue = 35;
+      }
+      
       coreGradient.addColorStop(0, `hsla(${coreHue}, 90%, 70%, 0.8)`);
       coreGradient.addColorStop(1, `hsla(${coreHue}, 90%, 70%, 0)`);
       

@@ -164,13 +164,41 @@ export async function memoryLifecyclePhase(userId: string) {
 
     // Fetch the latest emotional state (VAD) to dynamically modulate decay (Option A)
     let currentVAD = { v: 0, a: 0, d: 0 };
+    let hasLiveEmotion = false;
     try {
       const emotionSnapshots = await db.collection(`users/${userId}/emotionHistory`).orderBy('timestamp', 'desc').limit(1).get();
       if (!emotionSnapshots.empty) {
         currentVAD = emotionSnapshots.docs[0].data().vad || currentVAD;
+        hasLiveEmotion = true;
       }
     } catch (err) {
-      console.warn("[MemoryLifecycle] Failed to fetch latest emotion snapshot for dynamic decay modulation:", err);
+      console.warn("[MemoryLifecycle] Failed to fetch latest emotion snapshot:", err);
+    }
+
+    // Circadian Bias: if no live emotion, or to supplement it, use the circadian model
+    if (!hasLiveEmotion) {
+      try {
+        const circadianDoc = await db.collection(`users/${userId}/soul`).doc('circadianModel').get();
+        if (circadianDoc.exists) {
+          const { valenceCoeffs, arousalCoeffs, dominanceCoeffs } = circadianDoc.data() as any;
+          const hour = new Date().getHours();
+          const t = (hour / 24.0) * 2 * Math.PI;
+          
+          const evalFourier = (coeffs: number[]) => {
+            if (!coeffs || coeffs.length < 5) return 0;
+            return coeffs[0] + coeffs[1]*Math.cos(t) + coeffs[2]*Math.sin(t) + coeffs[3]*Math.cos(2*t) + coeffs[4]*Math.sin(2*t);
+          };
+
+          currentVAD = {
+            v: evalFourier(valenceCoeffs),
+            a: evalFourier(arousalCoeffs),
+            d: evalFourier(dominanceCoeffs)
+          };
+          console.log(`[MemoryLifecycle] Using circadian VAD bias: v=${currentVAD.v.toFixed(2)} a=${currentVAD.a.toFixed(2)}`);
+        }
+      } catch (e) {
+        console.warn("[MemoryLifecycle] Failed to apply circadian bias:", e);
+      }
     }
 
     // 1. Fetch all active memories

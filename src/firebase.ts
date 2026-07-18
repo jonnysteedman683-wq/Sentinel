@@ -138,12 +138,11 @@ export const anonymousSignIn = async (): Promise<{ user: User } | null> => {
 };
 
 // --- Firestore Offline / Quota Fallback Shim System ---
-export let isQuotaExceeded = false;
+export let isQuotaExceeded = true;
 try {
-  isQuotaExceeded = localStorage.getItem("firestore_quota_exceeded") === "true";
-  if (isQuotaExceeded) {
-    console.warn("[Firestore Quota Fallback] Proactively loaded quota-exceeded status. Operating in offline storage mode.");
-  }
+  // Always force offline mode since we removed Firebase Auth completely
+  isQuotaExceeded = true;
+  console.warn("[Firestore Quota Fallback] Operating in offline storage mode.");
 } catch (e) {
   // Local storage disabled or missing
 }

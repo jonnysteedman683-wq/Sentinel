@@ -3,6 +3,7 @@ import * as tf from '@tensorflow/tfjs';
 export class LiquidStateMachine {
   private inputWeights: tf.Tensor2D;
   private reservoirWeights: tf.Tensor2D;
+  private attentionQuery: tf.Variable; // trainable
   private readoutWeights: tf.Variable; // trainable
   
   // Optimizer for readout
@@ -19,6 +20,7 @@ export class LiquidStateMachine {
     const rawResWeights = tf.randomNormal([reservoirSize, reservoirSize], 0, 0.1);
     this.reservoirWeights = rawResWeights as tf.Tensor2D; // simplified
 
+    this.attentionQuery = tf.variable(tf.randomNormal([reservoirSize, 1], 0, 0.1) as tf.Tensor2D);
     this.readoutWeights = tf.variable(tf.randomNormal([reservoirSize, outputSize], 0, 0.1) as tf.Tensor2D);
     this.optimizer = tf.train.adam(0.01);
   }
@@ -50,17 +52,18 @@ export class LiquidStateMachine {
 
   /**
    * Train the readout layer using the liquid states to predict targets.
-   * @param liquidStates [batch, reservoirSize]
-   * @param targets [batch, outputSize]
+   * Uses quantum attention to compute a soft-weighted sum over states across time.
+   * @param sequenceStates [seqLen, reservoirSize]
+   * @param target [1, outputSize]
    */
-  trainReadout(liquidStates: tf.Tensor2D, targets: tf.Tensor2D, epochs: number = 5): number {
+  trainReadout(sequenceStates: tf.Tensor2D, target: tf.Tensor2D, epochs: number = 5): number {
     let finalLoss = 0;
     for (let i = 0; i < epochs; i++) {
       const lossFn = () => tf.tidy(() => {
-        const preds = tf.matMul(liquidStates, this.readoutWeights);
-        return tf.losses.meanSquaredError(targets, preds) as tf.Scalar;
+        const preds = this.predict(sequenceStates);
+        return tf.losses.meanSquaredError(target, preds) as tf.Scalar;
       });
-      const res = this.optimizer.minimize(lossFn, true, [this.readoutWeights]);
+      const res = this.optimizer.minimize(lossFn, true, [this.attentionQuery, this.readoutWeights]);
       if (res) {
         finalLoss = res.dataSync()[0];
         res.dispose();
@@ -70,11 +73,19 @@ export class LiquidStateMachine {
   }
 
   /**
-   * Predict output from a liquid state
+   * Predict output from a sequence of liquid states using soft attention
    */
-  predict(liquidState: tf.Tensor2D): tf.Tensor2D {
+  predict(sequenceStates: tf.Tensor2D): tf.Tensor2D {
     return tf.tidy(() => {
-      return tf.matMul(liquidState, this.readoutWeights);
+      // 1. Attention scores: [seqLen, 1]
+      const scores = tf.matMul(sequenceStates, this.attentionQuery);
+      const weights = tf.softmax(scores, 0);
+      
+      // 2. Soft-weighted sum: [1, reservoirSize]
+      const attended = tf.matMul(sequenceStates, weights, true, false).transpose();
+      
+      // 3. Project to output
+      return tf.matMul(attended, this.readoutWeights);
     });
   }
 
@@ -110,23 +121,30 @@ export class LiquidStateMachine {
   }
 
   
-  async exportWeights(): Promise<{ inputWeights: number[][], reservoirWeights: number[][], readoutWeights: number[][] }> {
+  async exportWeights(): Promise<{ inputWeights: number[][], reservoirWeights: number[][], readoutWeights: number[][], attentionQuery: number[][] }> {
     const inputData = await this.inputWeights.array() as number[][];
     const reservoirData = await this.reservoirWeights.array() as number[][];
     const readoutData = await this.readoutWeights.array() as number[][];
-    return { inputWeights: inputData, reservoirWeights: reservoirData, readoutWeights: readoutData };
+    const attentionData = await this.attentionQuery.array() as number[][];
+    return { inputWeights: inputData, reservoirWeights: reservoirData, readoutWeights: readoutData, attentionQuery: attentionData };
   }
 
-  loadWeights(weights: { inputWeights: number[][], reservoirWeights: number[][], readoutWeights: number[][] }) {
-    tf.dispose([this.inputWeights, this.reservoirWeights, this.readoutWeights]);
+  loadWeights(weights: { inputWeights: number[][], reservoirWeights: number[][], readoutWeights: number[][], attentionQuery?: number[][] }) {
+    tf.dispose([this.inputWeights, this.reservoirWeights, this.readoutWeights, this.attentionQuery]);
     this.inputWeights = tf.tensor2d(weights.inputWeights);
     this.reservoirWeights = tf.tensor2d(weights.reservoirWeights);
     this.readoutWeights = tf.variable(tf.tensor2d(weights.readoutWeights));
+    if (weights.attentionQuery) {
+      this.attentionQuery = tf.variable(tf.tensor2d(weights.attentionQuery));
+    } else {
+      this.attentionQuery = tf.variable(tf.randomNormal([this.reservoirSize, 1], 0, 0.1) as tf.Tensor2D);
+    }
   }
 
   dispose() {
     this.inputWeights.dispose();
     this.reservoirWeights.dispose();
     this.readoutWeights.dispose();
+    this.attentionQuery.dispose();
   }
 }

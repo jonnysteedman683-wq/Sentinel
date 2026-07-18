@@ -14,7 +14,8 @@ export const TelemetryDashboard: React.FC<{
   policyConfidence?: number;
   usePolicyNet?: boolean;
   onTogglePolicyNet?: (val: boolean) => void;
-}> = ({ theme, activeOptionName, cognitiveMode, onModeChange, efeScore, policyConfidence, usePolicyNet, onTogglePolicyNet }) => {
+  curiosityVector?: number[];
+}> = ({ theme, activeOptionName, cognitiveMode, onModeChange, efeScore, policyConfidence, usePolicyNet, onTogglePolicyNet, curiosityVector = [0,0,0,0] }) => {
   const [data, setData] = useState<any[]>([]);
   const [dreamHistory, setDreamHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -596,6 +597,45 @@ export const TelemetryDashboard: React.FC<{
               <Line type="monotone" dataKey="qValue" stroke="#2dd4bf" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+
+        <div className={`bg-white/5 border border-white/10 rounded-xl p-6 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-pink-400" />
+            Live Curiosity (ICM) Heatmap
+          </h3>
+          <p className="text-[10px] text-slate-500 mb-4 uppercase tracking-wider">
+            Intrinsic Prediction Error Across State Dimensions
+          </p>
+          <div className="flex gap-2 w-full h-24">
+            {curiosityVector.map((val, idx) => {
+              // Normalize the value for visualization
+              const intensity = Math.min(1, Math.max(0, val * 2));
+              // Color shifts from dark blue (low error) to hot pink/white (high error)
+              const hue = 240 - (intensity * 60); 
+              const lightness = 10 + (intensity * 60);
+              return (
+                <div 
+                  key={idx} 
+                  className="flex-1 rounded-sm transition-all duration-300 relative group overflow-hidden border border-white/5"
+                  style={{ backgroundColor: `hsl(${hue}, 80%, ${lightness}%)` }}
+                >
+                   {/* Hover tooltip for exact value */}
+                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-sm transition-opacity">
+                     <span className="text-[9px] font-mono text-white font-bold">{val.toFixed(3)}</span>
+                   </div>
+                   {/* Activation pulse for high values */}
+                   {intensity > 0.7 && (
+                     <div className="absolute inset-0 bg-white/20 animate-pulse mix-blend-overlay"></div>
+                   )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-2 uppercase tracking-widest">
+            <span>Dim_01</span>
+            <span>Dim_{curiosityVector.length < 10 ? `0${curiosityVector.length}` : curiosityVector.length}</span>
+          </div>
         </div>
 
         <div className={`lg:col-span-2 bg-white/5 border border-white/10 rounded-xl p-6 ${theme === 'dark' ? 'bg-black/40' : 'bg-white/60'}`}>
