@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface DreamCinemaProps {
   theme?: 'dark' | 'light';
+  memories?: any;
+  isConsolidating?: boolean;
 }
 
 export default function DreamCinema({ theme = 'dark' }: DreamCinemaProps) {

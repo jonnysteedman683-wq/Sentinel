@@ -7,6 +7,9 @@ import ReactFlow, {
   Edge,
   MarkerType
 } from 'reactflow';
+
+const ReactFlowComponent = ReactFlow as any;
+const BackgroundComponent = Background as any;
 import 'reactflow/dist/style.css';
 import { Brain, User, ShieldAlert } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -105,21 +108,21 @@ export default function CognitiveCanvas({ messages }: CognitiveCanvasProps) {
         <p className="text-xs text-slate-400 mt-0.5">Drag nodes to reorganize your thought architecture.</p>
       </div>
 
-      <ReactFlow
+      <ReactFlowComponent
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
         className="text-slate-200"
       >
-        <Background color="#ffffff" gap={16} size={1} opacity={0.03} />
+        <BackgroundComponent color="#ffffff" gap={16} size={1} style={{ opacity: 0.03 }} />
         <Controls className="bg-slate-900/80 border border-white/10 text-white rounded-lg p-1 fill-white [&_button]:border-none [&_button]:bg-transparent [&_button:hover]:bg-white/5" />
         <MiniMap 
           nodeColor={(node) => node.type === 'userNode' ? 'rgba(34, 211, 238, 0.2)' : 'rgba(129, 140, 248, 0.2)'}
           maskColor="rgba(2, 6, 23, 0.7)"
           className="border border-white/10 bg-slate-900/90 rounded-lg overflow-hidden"
         />
-      </ReactFlow>
+      </ReactFlowComponent>
     </div>
   );
 }

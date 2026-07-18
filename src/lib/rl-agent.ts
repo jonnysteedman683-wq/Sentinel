@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 import { doc, getDoc, setDoc, collection, addDoc, db } from '../firebase.js';
 import { SerializedDQN, RLWeightsDoc, ExperienceTuple } from '../types.js';
 import { serializeDQN, deserializeDQN, serializeDense, deserializeDense } from './rl-persistence.js';
-import { Option, IdleExplorerOption, DeepConsolidatorOption, HybridSyncRAGOption } from './options.js';
+import { Option, IdleExplorerOption, DeepConsolidatorOption, HybridSyncRAGOption, SystemSelfRepairOption } from './options.js';
 import { 
   zeros, add, Dense, QNetwork, Encoder, 
   InverseModel, ForwardModel 
@@ -132,7 +132,8 @@ export class CuriousAgent {
     const opts = [
       new IdleExplorerOption(state_dim, lr),
       new DeepConsolidatorOption(state_dim, lr),
-      new HybridSyncRAGOption(state_dim, lr)
+      new HybridSyncRAGOption(state_dim, lr),
+      new SystemSelfRepairOption(state_dim, lr)
     ];
     this.options = Object.assign(opts, {
       get: (id: string) => opts.find(o => o.id === id)
@@ -165,7 +166,11 @@ export class CuriousAgent {
   // Phase 1 Upgrade: Compute live curiosity vector (prediction error per state dimension)
   getCuriosityVector(state: number[], action: number): number[] {
     const enc = this.encoder.forward([state])[0];
-    const pred_enc = this.forward_model.forward([enc], [action])[0];
+    const a_onehot = new Array(this.n_actions).fill(0);
+    if (action >= 0 && action < this.n_actions) {
+      a_onehot[action] = 1.0;
+    }
+    const pred_enc = this.forward_model.forward([enc], [a_onehot])[0];
     
     // We can't directly get the decoded state without a decoder, but we can return the error vector 
     // between the current encoding and predicted next encoding as a proxy for curiosity.

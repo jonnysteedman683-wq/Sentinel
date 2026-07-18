@@ -23,7 +23,7 @@ import { LocalOnlyModeBanner } from './components/LocalOnlyModeBanner.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
-import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split } from 'lucide-react';
+import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split, Stethoscope } from 'lucide-react';
 import VitalsDashboard from "./components/VitalsDashboard.js";
 import { SentimentDriftChart } from "./components/SentimentDriftChart.js";
 import { MindMap } from "./components/MindMap.js";
@@ -34,7 +34,6 @@ import { NeuralIntentPanel } from "./components/NeuralIntentPanel.js";
 import { LandingScreen } from './components/LandingScreen.js';
 import { AutoDebugger } from './components/AutoDebugger.js';
 import TelemetryDashboard from './components/TelemetryDashboard.js';
-import SandboxPanel from './components/SandboxPanel.js';
 import SwarmVisualizer from './components/SwarmVisualizer.js';
 import CognitiveCanvas from './components/CognitiveCanvas.js';
 import DreamCinema from './components/DreamCinema.js';
@@ -186,7 +185,7 @@ function MainApp() {
   const isApiUnreachable = errors.some(e => e.error.code === 'GEMINI_API_FAILURE');
   const [modelState, setModelState] = useState<ModelState>('Idle');
   const [activeInsight, setActiveInsight] = useState<InsightData | null>(null);
-  const [appView, setAppView] = useState<'landing' | 'dashboard'>('dashboard');
+  const [appView, setAppView] = useState<'landing' | 'dashboard'>('landing');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -436,7 +435,7 @@ function MainApp() {
       [newThreadId]: branchedHistory
     }));
     setActiveThreadId(newThreadId);
-    addLog(`Branched new timeline: ${newThreadId}`, 'SYSTEM', 'COGNITIVE', `tr_${Math.random().toString(36).substring(2, 11)}`);
+    addLog(`Branched new timeline: ${newThreadId}`, 'INFO', 'COGNITIVE', `tr_${Math.random().toString(36).substring(2, 11)}`);
   };
 
   // Synchronize debateMachine outcomes with Chat Messages and System Logs
@@ -1529,7 +1528,7 @@ function MainApp() {
             debateLog: null,
             superpositionBranches: mappedBranches,
             suggestedShortcuts: [],
-            systemUI: null,
+            systemUI: null as string | null,
             systemUIData: null,
             timestamp: Date.now(),
             traceId,
@@ -2409,7 +2408,7 @@ function MainApp() {
       {/* 1. Ambient Background Layer */}
       <UnconsciousBackground 
         theme={theme} 
-        cognitiveLoad={depth === 'Superficial' ? 0.2 : depth === 'Balanced' ? 0.5 : 0.9} 
+        cognitiveLoad={depth === 'Fast' ? 0.2 : depth === 'Balanced' ? 0.5 : 0.9} 
         efeScore={efeScore} 
       />
 
@@ -2580,7 +2579,7 @@ function MainApp() {
               <>
                 {chatLayout === 'canvas' ? (
                   <div className="flex-grow w-full h-[550px] min-h-[400px] p-4 overflow-hidden relative z-10">
-                    <CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp }))} />
+                    <CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp ?? Date.now() }))} />
                   </div>
                 ) : (
                   <div className="flex-1 overflow-hidden relative flex flex-col">
@@ -2865,7 +2864,7 @@ function MainApp() {
                       <SubagentDebateArena 
                         logs={debateState.context.debateLog} 
                         theme={theme} 
-                        isComplete={debateState.matches('complete') || debateState.matches('idle')}
+                        isComplete={debateState.matches('consensusReached') || debateState.matches('idle')}
                       />
                     )}
                   </div>
@@ -3235,7 +3234,7 @@ function MainApp() {
               </div>
             ) : activeTab === 'Goals' ? (
               <div className="h-full w-full">
-                <GoalFormationUI theme={theme} handleSend={handleSend} handleTabChange={setActiveTab} />
+                 <GoalFormationUI theme={theme} handleSend={(text) => handleSend(undefined, text)} handleTabChange={(tab) => setActiveTab(tab as SidebarTab)} />
               </div>
             ) : activeTab === 'Diagnostics' ? (
               <SystemDiagnosticsUI theme={theme} />

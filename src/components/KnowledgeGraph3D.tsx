@@ -44,7 +44,7 @@ const ENTANGLED_THRESHOLD = 0.9;
 const MAX_DOCS = 200;
 
 export default function KnowledgeGraph3D({ memories }: KnowledgeGraph3DProps) {
-  const fgRef = useRef<any>();
+  const fgRef = useRef<any>(null);
   
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[], links: GraphLink[] }>({ nodes: [], links: [] });
   const [hoverNode, setHoverNode] = useState<GraphNode | null>(null);
