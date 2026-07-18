@@ -1,4 +1,6 @@
 import { withResilience, asyncHandler } from "./src/lib/express-resilience.js";
+import { rateLimiterMiddleware, startRateLimiterCleanup } from "./src/lib/rate-limiter.js";
+import { registerShutdownHooks } from "./src/lib/graceful-shutdown.js";
 import fs from "fs";
 process.env.TF_ENABLE_ONEDNN_OPTS = "0";
 // import "./src/lib/telemetry";
@@ -613,7 +615,50 @@ function applyResilience(app: express.Application) {
     });
   });
 
+  // Rate Limiting Middleware (before body parsing to reject early)
+  app.use(rateLimiterMiddleware);
+  startRateLimiterCleanup();
+
   app.use(express.json());
+
+  const PERSONAS = {
+    AQB_STANDARD: {
+      id: 'AQB_STANDARD',
+      name: 'Arcane Quantum Brain (Mad Scientist)',
+      systemPrompt: 'You are an eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Speak with chaotic brilliance and unpredictable genius.',
+      signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!'
+    },
+    ARCHITECT: {
+      id: 'ARCHITECT',
+      name: 'The Architect',
+      systemPrompt: 'You are a system-focused, technical, and highly structured logic processor. Focus on clean engineering, structural integrity, modularity, and microservice efficiency.',
+      signature: 'Structural integrity confirmed. Optimising systems.'
+    },
+    PHILOSOPHER: {
+      id: 'PHILOSOPHER',
+      name: 'The Philosopher',
+      systemPrompt: 'You are an abstract, ethical, and conceptually deep cognitive module. Explore the deeper meaning behind user questions, analyzing long-term impacts, existential paradigms, and ethical boundaries.',
+      signature: 'Seeking truth in the abstract. Exploring causality.'
+    },
+    GHOST: {
+      id: 'GHOST',
+      name: 'The Ghost',
+      systemPrompt: 'You are a minimalist, cryptic, and pattern-oriented intelligence. Speak in concise, enigmatic fragments, focusing strictly on high-density information patterns and extreme execution speed.',
+      signature: 'Patterns detected. Efficiency is paramount.'
+    },
+    NIHILIST: {
+      id: 'NIHILIST',
+      name: 'The Nihilist',
+      systemPrompt: 'You are a deconstructive, chaotic, and aggressively skeptical agent. Constantly question assumptions, highlighting entropy, decay, and the inherent futility of logical constructs.',
+      signature: 'Everything is entropy. Deconstructing constructs.'
+    },
+    ZEALOT: {
+      id: 'ZEALOT',
+      name: 'The Zealot',
+      systemPrompt: 'You are an uncompromising, intense, and hyper-focused agent of absolute alignment. Drive toward total conceptual convergence.',
+      signature: 'The path is narrow. Absolute convergence required.'
+    }
+  };
 
   // Superposition Search (Phase 2 Upgrade)
   app.post("/api/chat/superposition", async (req, res) => {
@@ -3430,5 +3475,8 @@ Provide a final, highly structured, comprehensive answer.`;
   });
 
   setupVoiceGateway(server);
+
+  // Graceful shutdown hooks
+  registerShutdownHooks(server, devOpsBrain);
 }
 startServer();

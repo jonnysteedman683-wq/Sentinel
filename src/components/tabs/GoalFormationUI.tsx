@@ -54,7 +54,7 @@ export function GoalFormationUI({ theme, handleSend, handleTabChange }: { theme:
     const db = getFirestore();
     const q = query(collection(db, `users/${user.uid}/goals`), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, snap => {
-      const dbGoals = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Goal));
+      const dbGoals = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Goal));
       setGoals(dbGoals);
     });
     return () => unsubscribe();

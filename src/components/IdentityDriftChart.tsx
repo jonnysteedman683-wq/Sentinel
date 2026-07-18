@@ -45,7 +45,7 @@ export const IdentityDriftChart: React.FC<IdentityDriftChartProps> = ({ history,
     <ResponsiveContainer width="100%" height={300}>
       <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
         <PolarGrid stroke={isDark ? '#334155' : '#e2e8f0'} />
-        <PolarAngleAxis dataKey="subject" tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10, fontFamily: 'monospace', textTransform: 'uppercase' }} />
+        <PolarAngleAxis dataKey="subject" tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10, fontFamily: 'monospace', textTransform: 'uppercase' } as any} />
         <PolarRadiusAxis angle={30} domain={[0, 1]} tick={false} axisLine={false} />
         <Tooltip 
           contentStyle={{ backgroundColor: isDark ? '#0f172a' : '#ffffff', borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: '8px' }}

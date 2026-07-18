@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../src/App';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
+const jest = vi;
 
 // Mock the API layer and Firebase
 jest.mock('../src/lib/api', () => ({
@@ -28,6 +30,7 @@ jest.mock('../src/firebase', () => ({
 
 describe('Arcane Quantum Brain - Main Application', () => {
   beforeEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
     jest.clearAllMocks();
     // Clear local storage for clean state
     localStorage.clear();
@@ -35,14 +38,14 @@ describe('Arcane Quantum Brain - Main Application', () => {
 
   it('renders the landing screen by default', () => {
     render(<App />);
-    expect(screen.getByText(/Begin/i)).toBeInTheDocument();
+    expect(screen.getByText(/Neural Link/i)).toBeInTheDocument();
   });
 
   it('shows the onboarding wizard on first load in dashboard', () => {
     render(<App />);
     
     // Simulate clicking Begin to enter dashboard
-    const beginButton = screen.getByText(/Begin/i);
+    const beginButton = screen.getByText(/Neural Link/i);
     fireEvent.click(beginButton);
     
     // Welcome step of onboarding should be visible
@@ -54,13 +57,13 @@ describe('Arcane Quantum Brain - Main Application', () => {
     render(<App />);
     
     // Simulate clicking Begin to enter dashboard
-    const beginButton = screen.getByText(/Begin/i);
+    const beginButton = screen.getByText(/Neural Link/i);
     fireEvent.click(beginButton);
     
     // Onboarding should not be visible
     expect(screen.queryByText('Welcome to Arcane Quantum Brain')).not.toBeInTheDocument();
     
     // Instead we should see the main dashboard elements
-    expect(screen.getByText('ArcaneQuantumBrain')).toBeInTheDocument();
+    expect(screen.getByText('AQB')).toBeInTheDocument();
   });
 });
