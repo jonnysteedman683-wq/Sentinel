@@ -2,7 +2,7 @@
 FROM node:22 AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/firebase-applet-config.json ./
 # Install only runtime dependencies to ensure correct native binaries for tensorflow and other packages are resolved
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/dist ./dist
 
 ENV NODE_ENV=production
