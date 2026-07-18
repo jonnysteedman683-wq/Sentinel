@@ -25,6 +25,7 @@ import { localTraces } from "./src/lib/telemetry.js";
 import { createContext, runInContext } from "vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
+import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 
 export const executeCodeInternal = (code: string): string => {
     try {
@@ -3408,7 +3409,7 @@ Provide a final, highly structured, comprehensive answer.`;
   });
 
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Automated RAG Maintenance: sync every 5 minutes
@@ -3427,5 +3428,7 @@ Provide a final, highly structured, comprehensive answer.`;
       console.warn("[SelfHealing] Firestore not available, orchestrator will not log metrics.");
     }
   });
+
+  setupVoiceGateway(server);
 }
 startServer();
