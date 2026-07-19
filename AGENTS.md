@@ -12,3 +12,6 @@
 - Prioritize strict TypeScript interfaces for any new data structures.
 - Ensure all API endpoints implement graceful degradation to prevent cascading failures.
 - Keep new components modularized to prevent further monolithic bloat in core files.
+
+## 4. Node.js & React 19 Build Environments
+- **Peer Dependency Conflicts:** When creating or modifying CI/CD pipelines (e.g., GitHub Actions) or `Dockerfile`s for projects using React 19 alongside older ecosystem packages (like `lucide-react`), you MUST append `--legacy-peer-deps` to all `npm ci` and `npm install` commands to prevent strict peer dependency resolution failures.
