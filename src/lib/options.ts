@@ -1,4 +1,4 @@
-import { QNetwork } from './rl-core.js';
+import { TFQNetwork as QNetwork } from './tf-rl-core.js';
 
 export interface Option {
   id: string;

@@ -230,7 +230,7 @@ function MainApp() {
   };
 
   const [qValueHistory, setQValueHistory] = useState<{ episode: number; qValue: number }[]>(
-    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0.5 + Math.random() * 0.4 }))
+    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0 }))
   );
 
   // Dynamic Vitals & Health Tracking
@@ -276,9 +276,15 @@ function MainApp() {
 
       setQValueHistory(prev => {
         const nextEpisode = prev[prev.length - 1].episode + 1;
-        const lastQValue = prev[prev.length - 1].qValue;
-        const convergence = 0.95; 
-        const nextQValue = lastQValue * convergence + (Math.random() * 0.1);
+        // Get real Q-value from the agent's DQN
+        let nextQValue = 0;
+        try {
+          if (rlAgent.current) {
+            nextQValue = rlAgent.current.getMeanQValue();
+          }
+        } catch (e) {
+          // TF.js not ready yet, use 0
+        }
         ingestTelemetry({ type: 'q_convergence', data: { episode: nextEpisode, qValue: nextQValue } });
         return [...prev.slice(1), { episode: nextEpisode, qValue: nextQValue }];
       });
