@@ -22,6 +22,7 @@ import { LandingScreen } from './components/LandingScreen.js';
 import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
 import { ConsolidationSuggestion, ConsolidationProposal } from './components/ConsolidationSuggestion.js';
 import { VoiceBridge } from './components/VoiceBridge.js';
+import { PWAUpdatePrompt } from './components/PWAUpdatePrompt.js';
 import InsightReveal from './components/InsightReveal.js';
 import { ReasoningTree } from './components/ReasoningTree.js';
 import InsightFeed from './components/InsightFeed.js';
@@ -3525,6 +3526,7 @@ function MainApp() {
           onSpeechRecognized={handleSpeechRecognized} 
           textToSpeak={textToSpeak} 
         />
+        <PWAUpdatePrompt />
 
       </div>
     </div>
