@@ -24,19 +24,43 @@ import { AgenticSwarm, SwarmState } from "./src/lib/swarm-engine.js";
 import { SystemHealthCollector } from "./src/lib/system-health-collector.js";
 import { SelfHealingOrchestrator } from "./src/lib/self-healing-orchestrator.js";
 import { localTraces } from "./src/lib/telemetry.js";
-import { createContext, runInContext } from "vm";
+import ivm from "isolated-vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 
 export const executeCodeInternal = (code: string): string => {
+    let isolate;
     try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      return JSON.stringify(sandbox.result);
-    } catch (e) {
+      isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
+
+      context.evalClosureSync(`
+          global.console = {
+              log: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              },
+              error: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              },
+              warn: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              }
+          };
+      `, [function(...args: any[]) {
+          console.log(...args);
+      }], { arguments: { reference: true } });
+
+      const result = context.evalSync(code, { timeout: 1000, copy: true });
+      return JSON.stringify(result);
+    } catch (e: any) {
       return e instanceof Error ? e.message : String(e);
+    } finally {
+      if (isolate) {
+          isolate.dispose();
+      }
     }
 }
 
@@ -2984,30 +3008,34 @@ Provide a final, highly structured, comprehensive answer.`;
 
   // Dynamic Tool Forging (Sandbox)
   app.post("/api/execute-code", async (req, res) => {
+    let isolate;
     try {
       const { code } = req.body;
       if (!code) return res.status(400).json({ error: "No code provided" });
 
       let output = "";
-      const sandbox = {
-        console: {
-          log: (...args: any[]) => { output += args.join(" ") + "\\n"; },
-          error: (...args: any[]) => { output += "[ERROR] " + args.join(" ") + "\\n"; },
-          warn: (...args: any[]) => { output += "[WARN] " + args.join(" ") + "\\n"; }
-        },
-        Math,
-        Date,
-        Array,
-        Object,
-        String,
-        Number,
-        Boolean,
-        JSON,
-        setTimeout: (fn: any, ms: number) => setTimeout(fn, ms)
-      };
+      isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
 
-      const context = createContext(sandbox);
-      const result = runInContext(code, context, { timeout: 1000 }); // 1s timeout to prevent infinite loops
+      context.evalClosureSync(`
+          global.console = {
+              log: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              },
+              error: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              },
+              warn: function(...args) {
+                  $0.applyIgnored(undefined, args, { arguments: { copy: true } });
+              }
+          };
+      `, [function(...args: any[]) {
+          output += args.join(" ") + "\n";
+      }], { arguments: { reference: true } });
+
+      const result = context.evalSync(code, { timeout: 1000, copy: true });
 
       res.json({
         success: true,
@@ -3016,6 +3044,10 @@ Provide a final, highly structured, comprehensive answer.`;
       });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
+    } finally {
+      if (isolate) {
+          isolate.dispose();
+      }
     }
   });
 
@@ -3405,20 +3437,7 @@ Provide a final, highly structured, comprehensive answer.`;
     res.json(status);
   });
 
-  app.post("/api/execute-code", express.json(), async (req, res) => {
-    const validated = z.object({ code: z.string() }).safeParse(req.body);
-    if (!validated.success) return res.status(400).json({ error: "No code provided" });
-    const { code } = validated.data;
-    
-    try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      res.json({ result: sandbox.result });
-    } catch (e) {
-      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
-    }
-  });
+
   const isProd = process.env.NODE_ENV === "production" || fs.existsSync(path.join(process.cwd(), "dist/index.html"));
   if (!isProd) {
     try {
