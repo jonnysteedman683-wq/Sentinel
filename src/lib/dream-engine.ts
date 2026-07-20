@@ -349,16 +349,20 @@ async function performOfflineRL(userId: string): Promise<number> {
     await agent.loadWeights(userId);
 
     let sampleCount = 0;
+    const validExperiences = [];
     for (const doc of snapshot.docs) {
       const data = doc.data();
       if (data && Array.isArray(data.experiences)) {
         for (const exp of data.experiences) {
           if (exp.state && exp.action !== undefined && exp.reward !== undefined && exp.nextState) {
-            agent.remember(exp.state, exp.action, exp.reward, exp.nextState);
+            validExperiences.push(exp);
             sampleCount++;
           }
         }
       }
+    }
+    if (validExperiences.length > 0) {
+      agent.rememberBatch(validExperiences);
     }
 
     if (sampleCount > 0) {
