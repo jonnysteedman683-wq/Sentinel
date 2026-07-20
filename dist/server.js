@@ -169,9 +169,9 @@ var init_world_model = __esm({
         allLayers.forEach((l) => {
           const layerWeights = l.getWeights();
           const newWeights = layerWeights.map((w) => {
-            const tensor5 = tf2.tensor(weightsData[weightIdx], w.shape);
+            const tensor6 = tf2.tensor(weightsData[weightIdx], w.shape);
             weightIdx++;
-            return tensor5;
+            return tensor6;
           });
           l.setWeights(newWeights);
           newWeights.forEach((t) => t.dispose());
@@ -1856,7 +1856,7 @@ function cosineSimilarity(a, b) {
 }
 
 // src/lib/dream-engine.ts
-import * as tf7 from "@tensorflow/tfjs";
+import * as tf8 from "@tensorflow/tfjs";
 
 // src/lib/lsm.ts
 import * as tf3 from "@tensorflow/tfjs";
@@ -2272,7 +2272,7 @@ Transcript: ${debateTranscript}`;
 import { randomUUID as randomUUID3 } from "crypto";
 
 // src/lib/rl-agent.ts
-import * as tf6 from "@tensorflow/tfjs";
+import * as tf7 from "@tensorflow/tfjs";
 
 // src/firebase.ts
 import { initializeApp as initializeApp2 } from "firebase/app";
@@ -2517,321 +2517,260 @@ function handleOfflineGetDocs(path3) {
   };
 }
 
-// src/lib/rl-core.ts
-function zeros2(rows, cols) {
-  return Array.from({ length: rows }, () => Array(cols).fill(0));
-}
-function randn(rows, cols) {
-  const gaussian = () => {
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-  };
-  return Array.from(
-    { length: rows },
-    () => Array.from({ length: cols }, gaussian)
-  );
-}
-function matmul(A, B) {
-  if (!A || !A.length) return [];
-  if (!B || !B.length) return [];
-  const m = A.length;
-  const n = A[0] ? A[0].length : 0;
-  const p = B[0] ? B[0].length : 0;
-  if (n === 0 || p === 0) return [];
-  const C = zeros2(m, p);
-  for (let i = 0; i < m; i++) {
-    for (let k = 0; k < n; k++) {
-      for (let j = 0; j < p; j++) {
-        C[i][j] += (A[i][k] || 0) * (B[k][j] || 0);
-      }
-    }
-  }
-  return C;
-}
-function add2(A, B) {
-  if (!A || !A.length) return [];
-  const rows = A.length, cols = A[0] ? A[0].length : 0;
-  const C = zeros2(rows, cols);
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      C[i][j] = (A[i][j] || 0) + (B[i]?.[j] || 0);
-    }
-  }
-  return C;
-}
-function transpose(A) {
-  if (!A || !A.length) return [];
-  const rows = A.length, cols = A[0] ? A[0].length : 0;
-  const C = zeros2(cols, rows);
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      if (C[j]) C[j][i] = A[i][j] || 0;
-    }
-  }
-  return C;
-}
-function hadamard(A, B) {
-  if (!A || !A.length) return [];
-  const rows = A.length, cols = A[0] ? A[0].length : 0;
-  const C = zeros2(rows, cols);
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      C[i][j] = (A[i][j] || 0) * (B[i]?.[j] || 0);
-    }
-  }
-  return C;
-}
-function sum_along_axis0(A) {
-  if (!A || !A.length) return [];
-  const rows = A.length, cols = A[0] ? A[0].length : 0;
-  const res = Array(cols).fill(0);
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      res[j] += A[i][j] || 0;
-    }
-  }
-  return [res];
-}
-function relu(x) {
-  const m = x.length, n = x[0].length;
-  const out = zeros2(m, n);
-  const mask = zeros2(m, n);
-  for (let i = 0; i < m; i++) {
-    for (let j = 0; j < n; j++) {
-      if (x[i][j] > 0) {
-        out[i][j] = x[i][j];
-        mask[i][j] = 1;
-      }
-    }
-  }
-  return { out, mask };
-}
-var Dense = class {
+// src/lib/tf-rl-core.ts
+import * as tf4 from "@tensorflow/tfjs";
+var TFQNetwork = class {
+  model;
+  targetModel;
+  state_dim;
+  n_actions;
   lr;
-  W;
-  b;
-  in_dim;
-  out_dim;
-  x = [];
-  constructor(in_dim, out_dim, lr = 1e-3) {
+  constructor(state_dim, n_actions, lr = 1e-3) {
+    this.state_dim = state_dim;
+    this.n_actions = n_actions;
     this.lr = lr;
-    this.W = randn(in_dim, out_dim);
-    this.b = [Array(out_dim).fill(0)];
-    this.in_dim = in_dim;
-    this.out_dim = out_dim;
-  }
-  forward(x) {
-    this.x = x;
-    const y = matmul(x, this.W);
-    const out = zeros2(y.length, this.out_dim);
-    for (let i = 0; i < y.length; i++) {
-      for (let j = 0; j < this.out_dim; j++) {
-        out[i][j] = y[i][j] + (this.b[0][j] || 0);
-      }
-    }
-    return out;
-  }
-  backward(grad_y) {
-    const grad_W = matmul(transpose(this.x), grad_y);
-    const grad_b = sum_along_axis0(grad_y);
-    const grad_x = matmul(grad_y, transpose(this.W));
-    for (let i = 0; i < this.in_dim; i++) {
-      for (let j = 0; j < this.out_dim; j++) {
-        this.W[i][j] -= this.lr * grad_W[i][j];
-      }
-    }
-    for (let j = 0; j < this.out_dim; j++) {
-      this.b[0][j] -= this.lr * grad_b[0][j];
-    }
-    return grad_x;
-  }
-};
-var Encoder = class {
-  dense;
-  enc_dim;
-  s = [];
-  z = [];
-  mask = [];
-  constructor(input_dim, enc_dim, lr = 1e-3) {
-    this.dense = new Dense(input_dim, enc_dim, lr);
-    this.enc_dim = enc_dim;
+    const buildNet = () => {
+      const m = tf4.sequential();
+      m.add(tf4.layers.dense({ units: 64, activation: "relu", inputShape: [state_dim], kernelInitializer: "glorotUniform" }));
+      m.add(tf4.layers.dense({ units: 64, activation: "relu", kernelInitializer: "glorotUniform" }));
+      m.add(tf4.layers.dense({ units: n_actions, activation: "linear", kernelInitializer: "glorotUniform" }));
+      return m;
+    };
+    this.model = buildNet();
+    this.model.compile({ optimizer: tf4.train.adam(lr), loss: "meanSquaredError" });
+    this.targetModel = buildNet();
+    this.syncTarget();
   }
   forward(s) {
-    this.s = s;
-    const z3 = this.dense.forward(s);
-    const reluRes = relu(z3);
-    this.z = reluRes.out;
-    this.mask = reluRes.mask;
-    return this.z;
+    return tf4.tidy(() => {
+      const input = tf4.tensor2d(s);
+      const output = this.model.predict(input);
+      return output.arraySync();
+    });
   }
-  backward(grad_enc) {
-    const grad_z = hadamard(grad_enc, this.mask);
-    return this.dense.backward(grad_z);
+  forwardTarget(s) {
+    return tf4.tidy(() => {
+      const input = tf4.tensor2d(s);
+      const output = this.targetModel.predict(input);
+      return output.arraySync();
+    });
+  }
+  async train_step(s, actions, target_q, isOffline = false) {
+    const currentQ = this.forward(s);
+    const targetQMatrix = currentQ.map((qValues, i) => {
+      const newQ = [...qValues];
+      newQ[actions[i]] = target_q[i];
+      return newQ;
+    });
+    const xs = tf4.tensor2d(s);
+    const ys = tf4.tensor2d(targetQMatrix);
+    const history = await this.model.fit(xs, ys, {
+      epochs: 1,
+      batchSize: s.length,
+      verbose: 0
+    });
+    xs.dispose();
+    ys.dispose();
+    return history.history.loss[0];
+  }
+  syncTarget() {
+    const weights = this.model.getWeights();
+    const targetWeights = weights.map((w) => w.clone());
+    this.targetModel.setWeights(targetWeights);
+    weights.forEach((w) => w.dispose());
+  }
+  // Returns mean Q-value across all actions for a zero state — used for convergence tracking
+  getMeanQValue() {
+    return tf4.tidy(() => {
+      const input = tf4.zeros([1, this.state_dim]);
+      const output = this.model.predict(input);
+      return output.mean().dataSync()[0];
+    });
+  }
+  // Returns max Q-value for a given state — the value the agent is optimizing
+  getMaxQValue(state) {
+    return tf4.tidy(() => {
+      const input = tf4.tensor2d([state]);
+      const output = this.model.predict(input);
+      return output.max().dataSync()[0];
+    });
+  }
+  async serialize() {
+    const weights = this.model.getWeights();
+    const serialized = [];
+    for (const w of weights) {
+      serialized.push(await w.array());
+    }
+    return { weights: serialized };
+  }
+  async deserialize(data) {
+    if (!data?.weights?.length) return;
+    const tensors = data.weights.map((w) => tf4.tensor(w));
+    this.model.setWeights(tensors);
+    this.syncTarget();
+    tensors.forEach((t) => t.dispose());
   }
 };
-var InverseModel = class {
-  fc1;
-  fc2;
+var TFEncoder = class {
+  model;
+  state_dim;
+  enc_dim;
+  lr;
+  constructor(input_dim, enc_dim, lr = 1e-3) {
+    this.state_dim = input_dim;
+    this.enc_dim = enc_dim;
+    this.lr = lr;
+    this.model = tf4.sequential();
+    this.model.add(tf4.layers.dense({ units: enc_dim, activation: "relu", inputShape: [input_dim], kernelInitializer: "glorotUniform" }));
+    this.model.compile({ optimizer: tf4.train.adam(lr), loss: "meanSquaredError" });
+  }
+  forward(s) {
+    return tf4.tidy(() => {
+      const input = tf4.tensor2d(s);
+      const output = this.model.predict(input);
+      return output.arraySync();
+    });
+  }
+  // Train encoder to minimize reconstruction/prediction error
+  async trainStep(states, targets) {
+    const xs = tf4.tensor2d(states);
+    const ys = tf4.tensor2d(targets);
+    const history = await this.model.fit(xs, ys, { epochs: 1, batchSize: states.length, verbose: 0 });
+    xs.dispose();
+    ys.dispose();
+    return history.history.loss[0];
+  }
+  async serialize() {
+    const weights = this.model.getWeights();
+    const serialized = [];
+    for (const w of weights) {
+      serialized.push(await w.array());
+    }
+    return { weights: serialized };
+  }
+  async deserialize(data) {
+    if (!data?.weights?.length) return;
+    const tensors = data.weights.map((w) => tf4.tensor(w));
+    this.model.setWeights(tensors);
+    tensors.forEach((t) => t.dispose());
+  }
+};
+var TFInverseModel = class {
+  model;
+  enc_dim;
   n_actions;
-  input = [];
-  h = [];
-  h_mask = [];
   constructor(enc_dim, n_actions, lr = 1e-3) {
-    this.fc1 = new Dense(2 * enc_dim, 64, lr);
-    this.fc2 = new Dense(64, n_actions, lr);
+    this.enc_dim = enc_dim;
     this.n_actions = n_actions;
+    this.model = tf4.sequential();
+    this.model.add(tf4.layers.dense({ units: 64, activation: "relu", inputShape: [2 * enc_dim], kernelInitializer: "glorotUniform" }));
+    this.model.add(tf4.layers.dense({ units: n_actions, activation: "softmax", kernelInitializer: "glorotUniform" }));
+    this.model.compile({ optimizer: tf4.train.adam(lr), loss: "categoricalCrossentropy" });
   }
   forward(enc_s, enc_s_next) {
-    if (!enc_s || !enc_s.length || !enc_s_next || !enc_s_next.length) return [];
-    const batch = enc_s.length;
-    const concat4 = zeros2(batch, (enc_s[0] ? enc_s[0].length : 0) + (enc_s_next[0] ? enc_s_next[0].length : 0));
-    for (let i = 0; i < batch; i++) {
-      concat4[i] = [...enc_s[i] || [], ...enc_s_next[i] || []];
-    }
-    this.input = concat4;
-    const h_raw = this.fc1.forward(concat4);
-    const reluRes = relu(h_raw);
-    this.h = reluRes.out;
-    this.h_mask = reluRes.mask;
-    return this.fc2.forward(this.h);
+    return tf4.tidy(() => {
+      const batch = enc_s.length;
+      const concat4 = tf4.tensor2d(
+        Array.from({ length: batch }, (_, i) => [...enc_s[i] || [], ...enc_s_next[i] || []])
+      );
+      const output = this.model.predict(concat4);
+      return output.arraySync();
+    });
   }
-  backward(grad_logits) {
-    let grad_h = this.fc2.backward(grad_logits);
-    grad_h = hadamard(grad_h, this.h_mask);
-    const grad_concat = this.fc1.backward(grad_h);
-    const enc_dim = grad_concat[0] ? Math.floor(grad_concat[0].length / 2) : 0;
-    const grad_enc_s = grad_concat.map((row) => row.slice(0, enc_dim));
-    const grad_enc_s_next = grad_concat.map((row) => row.slice(enc_dim));
-    return { grad_enc_s, grad_enc_s_next };
+  async trainStep(enc_s, enc_s_next, actions) {
+    const batch = enc_s.length;
+    const xs = tf4.tensor2d(
+      Array.from({ length: batch }, (_, i) => [...enc_s[i], ...enc_s_next[i]])
+    );
+    const ys = tf4.oneHot(tf4.tensor1d(actions, "int32"), this.n_actions);
+    const history = await this.model.fit(xs, ys, { epochs: 1, batchSize: batch, verbose: 0 });
+    xs.dispose();
+    ys.dispose();
+    return history.history.loss[0];
+  }
+  async serialize() {
+    const weights = this.model.getWeights();
+    const serialized = [];
+    for (const w of weights) {
+      serialized.push(await w.array());
+    }
+    return { weights: serialized };
+  }
+  async deserialize(data) {
+    if (!data?.weights?.length) return;
+    const tensors = data.weights.map((w) => tf4.tensor(w));
+    this.model.setWeights(tensors);
+    tensors.forEach((t) => t.dispose());
   }
 };
-var ForwardModel = class {
-  fc1;
-  fc2;
-  input = [];
-  h = [];
-  h_mask = [];
+var TFForwardModel = class {
+  model;
+  enc_dim;
+  n_actions;
   constructor(enc_dim, n_actions, lr = 1e-3) {
-    this.fc1 = new Dense(enc_dim + n_actions, 64, lr);
-    this.fc2 = new Dense(64, enc_dim, lr);
+    this.enc_dim = enc_dim;
+    this.n_actions = n_actions;
+    this.model = tf4.sequential();
+    this.model.add(tf4.layers.dense({ units: 64, activation: "relu", inputShape: [enc_dim + n_actions], kernelInitializer: "glorotUniform" }));
+    this.model.add(tf4.layers.dense({ units: enc_dim, activation: "linear", kernelInitializer: "glorotUniform" }));
+    this.model.compile({ optimizer: tf4.train.adam(lr), loss: "meanSquaredError" });
   }
   forward(enc_s, a_onehot) {
-    if (!enc_s || !enc_s.length || !a_onehot || !a_onehot.length) return [];
+    return tf4.tidy(() => {
+      const batch = enc_s.length;
+      const concat4 = tf4.tensor2d(
+        Array.from({ length: batch }, (_, i) => [...enc_s[i] || [], ...a_onehot[i] || []])
+      );
+      const output = this.model.predict(concat4);
+      return output.arraySync();
+    });
+  }
+  // Train forward model and return intrinsic rewards (prediction errors)
+  async trainStep(enc_s, a_onehot, enc_s_next) {
     const batch = enc_s.length;
-    const concat4 = zeros2(batch, (enc_s[0] ? enc_s[0].length : 0) + (a_onehot[0] ? a_onehot[0].length : 0));
-    for (let i = 0; i < batch; i++) {
-      concat4[i] = [...enc_s[i] || [], ...a_onehot[i] || []];
-    }
-    this.input = concat4;
-    const h_raw = this.fc1.forward(concat4);
-    const reluRes = relu(h_raw);
-    this.h = reluRes.out;
-    this.h_mask = reluRes.mask;
-    return this.fc2.forward(this.h);
-  }
-  backward(grad_pred) {
-    let grad_h = this.fc2.backward(grad_pred);
-    grad_h = hadamard(grad_h, this.h_mask);
-    this.fc1.backward(grad_h);
-  }
-};
-var QNetwork = class {
-  fc1;
-  fc2;
-  out;
-  n_actions;
-  mask1 = [];
-  mask2 = [];
-  cqlAlpha = 0.1;
-  constructor(state_dim, n_actions, lr = 1e-3) {
-    this.fc1 = new Dense(state_dim, 64, lr);
-    this.fc2 = new Dense(64, 64, lr);
-    this.out = new Dense(64, n_actions, lr);
-    this.n_actions = n_actions;
-  }
-  forward(s) {
-    let h = this.fc1.forward(s);
-    let reluRes = relu(h);
-    h = reluRes.out;
-    this.mask1 = reluRes.mask;
-    h = this.fc2.forward(h);
-    reluRes = relu(h);
-    h = reluRes.out;
-    this.mask2 = reluRes.mask;
-    return this.out.forward(h);
-  }
-  train_step(s, actions, target_q, isOffline = false) {
-    const batch = s.length;
-    const q = this.forward(s);
-    const grad_q = zeros2(batch, this.n_actions);
-    let tdLoss = 0;
-    for (let i = 0; i < batch; i++) {
-      const a = actions[i];
-      const diff = q[i][a] - target_q[i];
-      grad_q[i][a] = diff / batch;
-      tdLoss += diff * diff / (2 * batch);
-    }
-    let totalLoss = tdLoss;
-    if (isOffline) {
-      for (let i = 0; i < batch; i++) {
-        const row = q[i];
-        const maxQ = Math.max(...row);
-        let sumExp = 0;
-        for (const val of row) {
-          sumExp += Math.exp(val - maxQ);
-        }
-        const logSumExp = maxQ + Math.log(sumExp);
-        const meanQ = row.reduce((a, b) => a + b, 0) / this.n_actions;
-        const cqlPenalty = this.cqlAlpha * (logSumExp - meanQ);
-        totalLoss += cqlPenalty / batch;
-        for (let a = 0; a < this.n_actions; a++) {
-          const softmax2 = Math.exp(row[a] - maxQ) / sumExp;
-          grad_q[i][a] += this.cqlAlpha * (softmax2 - 1 / this.n_actions) / batch;
-        }
+    const xs = tf4.tensor2d(
+      Array.from({ length: batch }, (_, i) => [...enc_s[i], ...a_onehot[i]])
+    );
+    const ys = tf4.tensor2d(enc_s_next);
+    const history = await this.model.fit(xs, ys, { epochs: 1, batchSize: batch, verbose: 0 });
+    xs.dispose();
+    ys.dispose();
+    const predictions = this.forward(enc_s, a_onehot);
+    const intrinsicRewards = predictions.map((pred, i) => {
+      let err = 0;
+      for (let j = 0; j < pred.length; j++) {
+        const diff = pred[j] - enc_s_next[i][j];
+        err += diff * diff;
       }
+      return err * 0.1;
+    });
+    return { loss: history.history.loss[0], intrinsicRewards };
+  }
+  // Compute prediction error without training (for curiosity vector)
+  getPredictionError(enc_s, a_onehot, enc_s_next) {
+    const pred = this.forward([enc_s], [a_onehot])[0];
+    let err = 0;
+    for (let j = 0; j < pred.length; j++) {
+      const diff = pred[j] - enc_s_next[j];
+      err += diff * diff;
     }
-    let grad_h = this.out.backward(grad_q);
-    grad_h = hadamard(grad_h, this.mask2);
-    grad_h = this.fc2.backward(grad_h);
-    grad_h = hadamard(grad_h, this.mask1);
-    this.fc1.backward(grad_h);
-    return totalLoss;
+    return err;
+  }
+  async serialize() {
+    const weights = this.model.getWeights();
+    const serialized = [];
+    for (const w of weights) {
+      serialized.push(await w.array());
+    }
+    return { weights: serialized };
+  }
+  async deserialize(data) {
+    if (!data?.weights?.length) return;
+    const tensors = data.weights.map((w) => tf4.tensor(w));
+    this.model.setWeights(tensors);
+    tensors.forEach((t) => t.dispose());
   }
 };
-
-// src/lib/rl-persistence.ts
-function serializeDense(layer) {
-  return {
-    weights: JSON.stringify(layer.W),
-    biases: JSON.stringify(layer.b[0])
-  };
-}
-function serializeDQN(net) {
-  return {
-    layers: [
-      serializeDense(net.fc1),
-      serializeDense(net.fc2),
-      serializeDense(net.out)
-    ],
-    inputSize: net.fc1.in_dim,
-    outputSize: net.out.out_dim
-  };
-}
-function deserializeDense(layer, serialized) {
-  layer.W = JSON.parse(serialized.weights);
-  layer.b = [JSON.parse(serialized.biases)];
-}
-function deserializeDQN(data, lr = 1e-3) {
-  const net = new QNetwork(data.inputSize, data.outputSize, lr);
-  if (data.layers.length >= 3) {
-    deserializeDense(net.fc1, data.layers[0]);
-    deserializeDense(net.fc2, data.layers[1]);
-    deserializeDense(net.out, data.layers[2]);
-  }
-  return net;
-}
 
 // src/lib/options.ts
 var IdleExplorerOption = class {
@@ -2843,7 +2782,7 @@ var IdleExplorerOption = class {
   timesActivated = 0;
   successRate = 1;
   constructor(stateDim, lr = 1e-3) {
-    this.policy = new QNetwork(stateDim, this.actionSpace.length, lr);
+    this.policy = new TFQNetwork(stateDim, this.actionSpace.length, lr);
   }
   canInitiate(state) {
     const userActivity = state[3];
@@ -2870,7 +2809,7 @@ var DeepConsolidatorOption = class {
   timesActivated = 0;
   successRate = 1;
   constructor(stateDim, lr = 1e-3) {
-    this.policy = new QNetwork(stateDim, this.actionSpace.length, lr);
+    this.policy = new TFQNetwork(stateDim, this.actionSpace.length, lr);
   }
   canInitiate(state) {
     const memoryCount = state[1];
@@ -2897,7 +2836,7 @@ var HybridSyncRAGOption = class {
   timesActivated = 0;
   successRate = 1;
   constructor(stateDim, lr = 1e-3) {
-    this.policy = new QNetwork(stateDim, this.actionSpace.length, lr);
+    this.policy = new TFQNetwork(stateDim, this.actionSpace.length, lr);
   }
   canInitiate(state) {
     const memoryCount = state[1];
@@ -2924,7 +2863,7 @@ var SystemSelfRepairOption = class {
   timesActivated = 0;
   successRate = 1;
   constructor(stateDim, lr = 1e-3) {
-    this.policy = new QNetwork(stateDim, this.actionSpace.length, lr);
+    this.policy = new TFQNetwork(stateDim, this.actionSpace.length, lr);
   }
   canInitiate(state) {
     const messageCount = state[0];
@@ -2945,7 +2884,7 @@ var SystemSelfRepairOption = class {
 };
 
 // src/lib/active-inference.ts
-import * as tf4 from "@tensorflow/tfjs";
+import * as tf5 from "@tensorflow/tfjs";
 var ActiveInferenceAgent = class {
   worldModel;
   prefManager;
@@ -3021,16 +2960,16 @@ var ActiveInferenceAgent = class {
    * G = - EpistemicValue - PragmaticValue
    */
   calculateStepEFE(preds, mu, invCovDiag) {
-    return tf4.tidy(() => {
-      const latentVar = tf4.exp(preds.latentLogVar).clipByValue(1e-12, 1e12);
-      const latentLogVarClipped = tf4.log(latentVar);
-      const klZ = tf4.sum(
-        latentVar.add(tf4.square(preds.latentMean)).sub(1).sub(latentLogVarClipped)
+    return tf5.tidy(() => {
+      const latentVar = tf5.exp(preds.latentLogVar).clipByValue(1e-12, 1e12);
+      const latentLogVarClipped = tf5.log(latentVar);
+      const klZ = tf5.sum(
+        latentVar.add(tf5.square(preds.latentMean)).sub(1).sub(latentLogVarClipped)
       ).mul(0.5);
       const diff = preds.nextStateMean.squeeze().sub(mu);
-      const quad = tf4.sum(invCovDiag.mul(tf4.square(diff)));
-      const predVar = tf4.exp(preds.nextStateLogVar.squeeze());
-      const traceTerm = tf4.sum(invCovDiag.mul(predVar));
+      const quad = tf5.sum(invCovDiag.mul(tf5.square(diff)));
+      const predVar = tf5.exp(preds.nextStateLogVar.squeeze());
+      const traceTerm = tf5.sum(invCovDiag.mul(predVar));
       const logPref = quad.add(traceTerm).mul(-0.5);
       return klZ.sub(logPref);
     });
@@ -3039,14 +2978,14 @@ var ActiveInferenceAgent = class {
    * Evaluates a sequence of actions using the World Model rollouts.
    */
   async evaluateSequence(state, actionSeq, mu, invCovDiag) {
-    return tf4.tidy(() => {
+    return tf5.tidy(() => {
       let totalEFE = 0;
       let currentHidden = void 0;
-      let currentStateTensor = tf4.tensor2d(state, [1, state.length]);
+      let currentStateTensor = tf5.tensor2d(state, [1, state.length]);
       for (const a of actionSeq) {
         const actionArray = new Array(this.actionDim).fill(0);
         actionArray[a] = 1;
-        const actionTensor = tf4.tensor2d(actionArray, [1, actionArray.length]);
+        const actionTensor = tf5.tensor2d(actionArray, [1, actionArray.length]);
         const preds = this.worldModel.predictStep(currentStateTensor, actionTensor, currentHidden);
         const stepEFE = this.calculateStepEFE(preds, mu, invCovDiag);
         totalEFE += stepEFE.dataSync()[0];
@@ -3080,7 +3019,7 @@ var ActiveInferenceAgent = class {
       }
       seqCount++;
       if (seqCount % 20 === 0) {
-        await tf4.nextFrame();
+        await tf5.nextFrame();
       }
     }
     mu.dispose();
@@ -3101,7 +3040,7 @@ var ActiveInferenceAgent = class {
 };
 
 // src/lib/preferences.ts
-import * as tf5 from "@tensorflow/tfjs";
+import * as tf6 from "@tensorflow/tfjs";
 var DEFAULT_PREFERENCES = {
   // state: [memoryCount, sentiment, activity, depth, ...]
   // We prefer: moderate memories, high sentiment, moderate activity, deep focus
@@ -3133,15 +3072,15 @@ var PreferenceManager = class {
     }
   }
   get mu() {
-    return tf5.tensor1d(this.current.mu);
+    return tf6.tensor1d(this.current.mu);
   }
   get invCov() {
     const invDiag = this.current.sigmaDiag.map((s) => 1 / (s + 1e-6));
-    return tf5.diag(tf5.tensor1d(invDiag));
+    return tf6.diag(tf6.tensor1d(invDiag));
   }
   get invCovDiag() {
     const invDiag = this.current.sigmaDiag.map((s) => 1 / (s + 1e-6));
-    return tf5.tensor1d(invDiag);
+    return tf6.tensor1d(invDiag);
   }
   update(observedState, lr = 0.01) {
     this.current.mu = this.current.mu.map((val, i) => val * (1 - lr) + observedState[i] * lr);
@@ -3227,13 +3166,13 @@ var CuriousAgent = class {
     this.gamma = gamma;
     this.epsilon = epsilon;
     this.lr = lr;
-    this.q_online = new QNetwork(state_dim, n_actions, this.lr);
-    this.q_target = new QNetwork(state_dim, n_actions, this.lr);
+    this.q_online = new TFQNetwork(state_dim, n_actions, this.lr);
+    this.q_target = new TFQNetwork(state_dim, n_actions, this.lr);
     this.buffer = new ReplayBuffer();
     const enc_dim = 32;
-    this.encoder = new Encoder(state_dim, enc_dim, this.lr);
-    this.inverse_model = new InverseModel(enc_dim, n_actions, this.lr);
-    this.forward_model = new ForwardModel(enc_dim, n_actions, this.lr);
+    this.encoder = new TFEncoder(state_dim, enc_dim, this.lr);
+    this.inverse_model = new TFInverseModel(enc_dim, n_actions, this.lr);
+    this.forward_model = new TFForwardModel(enc_dim, n_actions, this.lr);
     const opts = [
       new IdleExplorerOption(state_dim, lr),
       new DeepConsolidatorOption(state_dim, lr),
@@ -3374,75 +3313,49 @@ var CuriousAgent = class {
     const [states, actions, rewards, next_states] = this.buffer.sample(32);
     const enc_s = this.encoder.forward(states);
     const enc_s_next = this.encoder.forward(next_states);
-    const pred_actions = this.inverse_model.forward(enc_s, enc_s_next);
-    const grad_inv = zeros2(32, this.n_actions);
-    for (let i = 0; i < 32; i++) {
-      grad_inv[i][actions[i]] = (pred_actions[i][actions[i]] - 1) / 32;
-    }
-    const { grad_enc_s: g1, grad_enc_s_next: g2 } = this.inverse_model.backward(grad_inv);
-    const a_onehot = zeros2(32, this.n_actions);
-    for (let i = 0; i < 32; i++) a_onehot[i][actions[i]] = 1;
-    const pred_enc_next = this.forward_model.forward(enc_s, a_onehot);
-    const grad_fwd = zeros2(32, 32);
-    const intrinsic_rewards = [];
-    for (let i = 0; i < 32; i++) {
-      let err = 0;
-      for (let j = 0; j < 32; j++) {
-        const diff = pred_enc_next[i][j] - enc_s_next[i][j];
-        grad_fwd[i][j] = diff / 32;
-        err += diff * diff;
+    await this.inverse_model.trainStep(enc_s, enc_s_next, actions);
+    const a_onehot = states.map(() => new Array(this.n_actions).fill(0));
+    for (let i = 0; i < actions.length; i++) {
+      if (actions[i] >= 0 && actions[i] < this.n_actions) {
+        a_onehot[i][actions[i]] = 1;
       }
-      intrinsic_rewards.push(err * 0.1);
     }
-    this.forward_model.backward(grad_fwd);
-    const grad_enc = add2(g1, g2);
-    this.encoder.backward(grad_enc);
-    const q_next = this.q_target.forward(next_states);
+    const { intrinsicRewards } = await this.forward_model.trainStep(enc_s, a_onehot, enc_s_next);
+    await this.encoder.trainStep(states, enc_s_next);
+    const q_next = this.q_target.forwardTarget(next_states);
     const target_q = [];
     for (let i = 0; i < 32; i++) {
-      const max_q_next = Math.max(...q_next[i]);
-      const total_reward = rewards[i] + intrinsic_rewards[i];
+      const max_q_next = Math.max(...q_next[i] || [0]);
+      const total_reward = rewards[i] + (intrinsicRewards[i] || 0);
       target_q.push(total_reward + this.gamma * max_q_next);
     }
-    this.q_online.train_step(states, actions, target_q);
+    await this.q_online.train_step(states, actions, target_q);
     this.epsilon = Math.max(0.1, this.epsilon * 0.995);
   }
   update_target() {
-    this.q_target.fc1.W = this.q_online.fc1.W.map((r) => [...r]);
-    this.q_target.fc1.b = this.q_online.fc1.b.map((r) => [...r]);
-    this.q_target.fc2.W = this.q_online.fc2.W.map((r) => [...r]);
-    this.q_target.fc2.b = this.q_online.fc2.b.map((r) => [...r]);
-    this.q_target.out.W = this.q_online.out.W.map((r) => [...r]);
-    this.q_target.out.b = this.q_online.out.b.map((r) => [...r]);
+    this.q_target.syncTarget();
+  }
+  // Returns the current mean Q-value — real convergence metric for the chart
+  getMeanQValue() {
+    return this.q_online.getMeanQValue();
   }
   async saveWeights(userId) {
     try {
       const optionWeights = {};
       for (const opt of this.options) {
         if (opt.policy) {
-          optionWeights[opt.name] = serializeDQN(opt.policy);
+          optionWeights[opt.name] = await opt.policy.serialize();
         }
       }
       const docData = {
         updatedAt: Date.now(),
-        topLevel: serializeDQN(this.q_online),
+        format: "tfjs-v2",
+        topLevel: await this.q_online.serialize(),
         options: optionWeights,
         icm: {
-          featureNet: {
-            layers: [serializeDense(this.encoder.dense)],
-            inputSize: this.encoder.dense.in_dim,
-            outputSize: this.encoder.dense.out_dim
-          },
-          forwardNet: {
-            layers: [serializeDense(this.forward_model.fc1), serializeDense(this.forward_model.fc2)],
-            inputSize: this.forward_model.fc1.in_dim,
-            outputSize: this.forward_model.fc2.out_dim
-          },
-          inverseNet: {
-            layers: [serializeDense(this.inverse_model.fc1), serializeDense(this.inverse_model.fc2)],
-            inputSize: this.inverse_model.fc1.in_dim,
-            outputSize: this.inverse_model.fc2.out_dim
-          }
+          encoder: await this.encoder.serialize(),
+          forwardModel: await this.forward_model.serialize(),
+          inverseModel: await this.inverse_model.serialize()
         },
         hyperparams: {
           epsilon: this.epsilon,
@@ -3461,32 +3374,32 @@ var CuriousAgent = class {
       const snap = await getDoc2(doc2(db, "users", userId, "rlAgent", "weights"));
       if (snap.exists()) {
         const data = snap.data();
-        this.q_online = deserializeDQN(data.topLevel, data.hyperparams.learningRate);
-        this.update_target();
-        this.epsilon = data.hyperparams.epsilon;
-        this.lr = data.hyperparams.learningRate;
-        this.gamma = data.hyperparams.discountFactor;
-        for (const opt of this.options) {
-          const optData = data.options[opt.name];
-          if (optData) {
-            opt.policy = deserializeDQN(optData);
+        if (data.format === "tfjs-v2") {
+          if (data.hyperparams) {
+            this.epsilon = data.hyperparams.epsilon;
+            this.lr = data.hyperparams.learningRate;
+            this.gamma = data.hyperparams.discountFactor;
           }
-        }
-        if (data.icm) {
-          if (data.icm.featureNet?.layers?.[0]) {
-            deserializeDense(this.encoder.dense, data.icm.featureNet.layers[0]);
+          if (data.topLevel) {
+            await this.q_online.deserialize(data.topLevel);
+            this.update_target();
           }
-          if (data.icm.forwardNet?.layers?.[0]) {
-            deserializeDense(this.forward_model.fc1, data.icm.forwardNet.layers[0]);
+          for (const opt of this.options) {
+            const optData = data.options?.[opt.name];
+            if (optData) {
+              await opt.policy.deserialize(optData);
+            }
           }
-          if (data.icm.forwardNet?.layers?.[1]) {
-            deserializeDense(this.forward_model.fc2, data.icm.forwardNet.layers[1]);
+          if (data.icm) {
+            if (data.icm.encoder) await this.encoder.deserialize(data.icm.encoder);
+            if (data.icm.forwardModel) await this.forward_model.deserialize(data.icm.forwardModel);
+            if (data.icm.inverseModel) await this.inverse_model.deserialize(data.icm.inverseModel);
           }
-          if (data.icm.inverseNet?.layers?.[0]) {
-            deserializeDense(this.inverse_model.fc1, data.icm.inverseNet.layers[0]);
-          }
-          if (data.icm.inverseNet?.layers?.[1]) {
-            deserializeDense(this.inverse_model.fc2, data.icm.inverseNet.layers[1]);
+        } else {
+          if (data.hyperparams) {
+            this.epsilon = data.hyperparams.epsilon;
+            this.lr = data.hyperparams.learningRate;
+            this.gamma = data.hyperparams.discountFactor;
           }
         }
         await this.aiPlanner.loadPolicyWeights();
@@ -3523,11 +3436,11 @@ async function liquidTrainingPhase(userId, cycleId) {
     }).reverse();
     if (thoughtTexts.length > 2) {
       const embeddings = await Promise.all(thoughtTexts.map((t) => getThoughtEmbedding(t)));
-      const seqTensor = tf7.tensor2d(embeddings);
+      const seqTensor = tf8.tensor2d(embeddings);
       const liquidStates = sharedLSM.processSequence(seqTensor);
       const seqLen = liquidStates.shape[0];
       const inputs = liquidStates.slice([0, 0], [seqLen - 1, -1]);
-      const targets = tf7.tensor2d([embeddings[embeddings.length - 1]]);
+      const targets = tf8.tensor2d([embeddings[embeddings.length - 1]]);
       const loss = sharedLSM.trainReadout(inputs, targets, 5);
       const lastState = liquidStates.slice([seqLen - 1, 0], [1, -1]).squeeze();
       const isAnomaly = sharedLSM.detectAnomaly(lastState);
@@ -3540,7 +3453,7 @@ async function liquidTrainingPhase(userId, cycleId) {
       if (isAnomaly) {
         triggerInsightFromAnomaly(userId, cycleId, thoughtTexts).catch(console.error);
       }
-      tf7.dispose([seqTensor, liquidStates, inputs, targets, lastState]);
+      tf8.dispose([seqTensor, liquidStates, inputs, targets, lastState]);
     }
     span.setStatus({ code: SpanStatusCode6.OK });
   } catch (err) {
@@ -4025,7 +3938,7 @@ async function touchMemory(userId, memoryId) {
 }
 
 // src/lib/federation.ts
-import * as tf8 from "@tensorflow/tfjs";
+import * as tf9 from "@tensorflow/tfjs";
 var FederatedServer = class {
   /**
    * FedAvg: Weighted average of model weight updates
@@ -4034,8 +3947,8 @@ var FederatedServer = class {
     if (updates.length === 0) return [];
     const totalSamples = updates.reduce((acc, u) => acc + u.sampleSize, 0);
     const aggregatedTensors = updates[0].weights.map((w) => {
-      return tf8.tidy(() => {
-        const weightTensor = tf8.tensor(w);
+      return tf9.tidy(() => {
+        const weightTensor = tf9.tensor(w);
         return weightTensor.mul(updates[0].sampleSize / totalSamples);
       });
     });
@@ -4043,8 +3956,8 @@ var FederatedServer = class {
       const scale = updates[i].sampleSize / totalSamples;
       updates[i].weights.forEach((w, j) => {
         const current = aggregatedTensors[j];
-        const nextTensor = tf8.tidy(() => {
-          const weightTensor = tf8.tensor(w);
+        const nextTensor = tf9.tidy(() => {
+          const weightTensor = tf9.tensor(w);
           const scaled = weightTensor.mul(scale);
           return current.add(scaled);
         });
@@ -4150,7 +4063,7 @@ Respond with your thoughts and contribution. If you want to update the scratchpa
 };
 
 // src/lib/system-health-model.ts
-import * as tf9 from "@tensorflow/tfjs";
+import * as tf10 from "@tensorflow/tfjs";
 
 // src/types.ts
 var MaintenanceActionType = /* @__PURE__ */ ((MaintenanceActionType2) => {
@@ -4174,22 +4087,22 @@ var SystemHealthModel = class {
   // memoryRatio, cpu, workers, queue, fsRead, fsWrite, geminiLat, errors, dreamFail
   actionDim = Object.keys(MaintenanceActionType).length;
   constructor() {
-    this.model = tf9.sequential({
+    this.model = tf10.sequential({
       layers: [
-        tf9.layers.dense({ units: 32, activation: "relu", inputShape: [this.stateDim + this.actionDim] }),
-        tf9.layers.dense({ units: 16, activation: "relu" }),
-        tf9.layers.dense({ units: this.stateDim })
+        tf10.layers.dense({ units: 32, activation: "relu", inputShape: [this.stateDim + this.actionDim] }),
+        tf10.layers.dense({ units: 16, activation: "relu" }),
+        tf10.layers.dense({ units: this.stateDim })
         // Predict next state
       ]
     });
     this.model.compile({ optimizer: "adam", loss: "meanSquaredError" });
   }
   predictNext(state, actionIdx) {
-    return tf9.tidy(() => {
+    return tf10.tidy(() => {
       const actionOneHot = new Array(this.actionDim).fill(0);
       actionOneHot[actionIdx] = 1;
       const combined = [...state, ...actionOneHot];
-      const input = tf9.tensor2d(combined, [1, combined.length]);
+      const input = tf10.tensor2d(combined, [1, combined.length]);
       const prediction = this.model.predict(input);
       return Array.from(prediction.dataSync());
     });
@@ -4202,8 +4115,8 @@ var SystemHealthModel = class {
       return [...h.state, ...actionOneHot];
     });
     const ys = history.map((h) => h.nextState);
-    const xTensor = tf9.tensor2d(xs, [xs.length, this.stateDim + this.actionDim]);
-    const yTensor = tf9.tensor2d(ys, [ys.length, this.stateDim]);
+    const xTensor = tf10.tensor2d(xs, [xs.length, this.stateDim + this.actionDim]);
+    const yTensor = tf10.tensor2d(ys, [ys.length, this.stateDim]);
     await this.model.fit(xTensor, yTensor, { epochs: 10, verbose: 0 });
     xTensor.dispose();
     yTensor.dispose();
@@ -4224,7 +4137,7 @@ var SystemHealthModel = class {
         const tensors = parsedWeights.map((w, i) => {
           const shape = this.model.getWeights()[i].shape;
           const numericW = Array.isArray(w) ? w.map((v) => typeof v === "number" ? v : 0) : [];
-          return tf9.tensor(numericW, shape);
+          return tf10.tensor(numericW, shape);
         });
         this.model.setWeights(tensors);
         tensors.forEach((t) => t.dispose());
@@ -6056,12 +5969,12 @@ Respond with the narrative text only.`;
       const clampedHorizon = Math.min(Math.max(1, horizon), 30);
       for (let i = 0; i < clampedHorizon; i++) {
         const action = actionSequence?.[i] ?? 0;
-        const tf10 = await import("@tensorflow/tfjs");
-        const sTensor = tf10.tensor2d(currentState, [1, stateDim]);
+        const tf11 = await import("@tensorflow/tfjs");
+        const sTensor = tf11.tensor2d(currentState, [1, stateDim]);
         const aOneHot = new Array(actionDim).fill(0);
         aOneHot[action] = 1;
-        const aTensor = tf10.tensor2d(aOneHot, [1, actionDim]);
-        const hTensor = hidden ? tf10.tensor2d(hidden, [1, 32]) : void 0;
+        const aTensor = tf11.tensor2d(aOneHot, [1, actionDim]);
+        const hTensor = hidden ? tf11.tensor2d(hidden, [1, 32]) : void 0;
         const preds = model.predictStep(sTensor, aTensor, hTensor);
         const nextStateLogVar = Array.from(preds.nextStateLogVar.dataSync());
         const uncertainty = Math.sqrt(nextStateLogVar.reduce((sum2, v) => sum2 + v * v, 0) / nextStateLogVar.length);
@@ -6074,7 +5987,7 @@ Respond with the narrative text only.`;
           done: result.done,
           uncertainty
         });
-        tf10.dispose([sTensor, aTensor, preds.nextStateMean, preds.nextStateLogVar, preds.reward, preds.done, preds.latentMean, preds.latentLogVar, preds.hidden]);
+        tf11.dispose([sTensor, aTensor, preds.nextStateMean, preds.nextStateLogVar, preds.reward, preds.done, preds.latentMean, preds.latentLogVar, preds.hidden]);
         if (hTensor) hTensor.dispose();
         currentState = result.nextState;
         if (result.done) break;
