@@ -285,13 +285,14 @@ export class DocumentReferenceShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key of Object.keys(copy)) {
-      if (copy[key] instanceof FieldValueShim) {
-        copy[key] = copy[key].value;
-      } else if (Array.isArray(copy[key])) {
-        copy[key] = copy[key].map(item => this.processData(item));
-      } else if (typeof copy[key] === "object" && copy[key] !== null) {
-        copy[key] = this.processData(copy[key]);
+    for (const key in copy) {
+      const val = copy[key];
+      if (val instanceof FieldValueShim) {
+        copy[key] = val.value;
+      } else if (Array.isArray(val)) {
+        copy[key] = val.map(item => this.processData(item));
+      } else if (typeof val === "object" && val !== null) {
+        copy[key] = this.processData(val);
       }
     }
     return copy;
@@ -423,13 +424,14 @@ export class CollectionReferenceShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key of Object.keys(copy)) {
-      if (copy[key] instanceof FieldValueShim) {
-        copy[key] = copy[key].value;
-      } else if (Array.isArray(copy[key])) {
-        copy[key] = copy[key].map(item => this.processData(item));
-      } else if (typeof copy[key] === "object" && copy[key] !== null) {
-        copy[key] = this.processData(copy[key]);
+    for (const key in copy) {
+      const val = copy[key];
+      if (val instanceof FieldValueShim) {
+        copy[key] = val.value;
+      } else if (Array.isArray(val)) {
+        copy[key] = val.map(item => this.processData(item));
+      } else if (typeof val === "object" && val !== null) {
+        copy[key] = this.processData(val);
       }
     }
     return copy;
@@ -527,13 +529,14 @@ class WriteBatchShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key of Object.keys(copy)) {
-      if (copy[key] instanceof FieldValueShim) {
-        copy[key] = copy[key].value;
-      } else if (Array.isArray(copy[key])) {
-        copy[key] = copy[key].map(item => this.processData(item));
-      } else if (typeof copy[key] === "object" && copy[key] !== null) {
-        copy[key] = this.processData(copy[key]);
+    for (const key in copy) {
+      const val = copy[key];
+      if (val instanceof FieldValueShim) {
+        copy[key] = val.value;
+      } else if (Array.isArray(val)) {
+        copy[key] = val.map(item => this.processData(item));
+      } else if (typeof val === "object" && val !== null) {
+        copy[key] = this.processData(val);
       }
     }
     return copy;
