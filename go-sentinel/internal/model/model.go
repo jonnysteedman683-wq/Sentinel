@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"gonum.org/v1/gonum/stat/distuv"
-	pb "sentinel/proto/sentinel/v1"
+	eventspb "sentinel/proto/sentinel/v1/events"
 )
 
 // Model interface
 type Model interface {
-	Score(context map[string]*pb.FeatureValue) (action string, propensity float64, actionProbs []*pb.ActionProbability, err error)
+	Score(context map[string]*eventspb.FeatureValue) (action string, propensity float64, actionProbs []*eventspb.ActionProbability, err error)
 }
 
 // BetaBanditModel holds arms and Beta parameters
@@ -37,7 +37,7 @@ func NewBetaBanditModel(arms []string, alphas, betas []float64) *BetaBanditModel
 }
 
 // Score uses Thompson sampling to choose an arm
-func (m *BetaBanditModel) Score(context map[string]*pb.FeatureValue) (action string, propensity float64, actionProbs []*pb.ActionProbability, err error) {
+func (m *BetaBanditModel) Score(context map[string]*eventspb.FeatureValue) (action string, propensity float64, actionProbs []*eventspb.ActionProbability, err error) {
 	rng := m.rngPool.Get().(*rand.Rand)
 	defer m.rngPool.Put(rng)
 
@@ -47,7 +47,7 @@ func (m *BetaBanditModel) Score(context map[string]*pb.FeatureValue) (action str
 
 	// 1. Thompson Sampling
 	for i := range m.arms {
-		dist := distuv.Beta{Alpha: m.alphas[i], Beta: m.betas[i], Src: distuv.NewRandSource(rng)}
+		dist := distuv.Beta{Alpha: m.alphas[i], Beta: m.betas[i], Src: rng}
 		samples[i] = dist.Rand()
 		if samples[i] > maxSample {
 			maxSample = samples[i]
@@ -63,7 +63,7 @@ func (m *BetaBanditModel) Score(context map[string]*pb.FeatureValue) (action str
 		bestInTrial := 0
 		maxInTrial := -1.0
 		for i := range m.arms {
-			dist := distuv.Beta{Alpha: m.alphas[i], Beta: m.betas[i], Src: distuv.NewRandSource(rng)}
+			dist := distuv.Beta{Alpha: m.alphas[i], Beta: m.betas[i], Src: rng}
 			sample := dist.Rand()
 			if sample > maxInTrial {
 				maxInTrial = sample
@@ -73,10 +73,10 @@ func (m *BetaBanditModel) Score(context map[string]*pb.FeatureValue) (action str
 		counts[bestInTrial]++
 	}
 
-	actionProbs = make([]*pb.ActionProbability, len(m.arms))
+	actionProbs = make([]*eventspb.ActionProbability, len(m.arms))
 	for i := range m.arms {
 		prob := float64(counts[i]) / float64(N)
-		actionProbs[i] = &pb.ActionProbability{
+		actionProbs[i] = &eventspb.ActionProbability{
 			Action:      m.arms[i],
 			Probability: prob,
 		}
