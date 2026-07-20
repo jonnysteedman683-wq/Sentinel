@@ -41,17 +41,15 @@ describe('Arcane Quantum Brain - Main Application', () => {
     expect(screen.getByText(/Neural Link/i)).toBeInTheDocument();
   });
 
-  it('shows the onboarding wizard on first load in dashboard', async () => {
+  it('shows the onboarding wizard on first load in dashboard', () => {
     render(<App />);
     
     // Simulate clicking Begin to enter dashboard
     const beginButton = screen.getByText(/Neural Link/i);
     fireEvent.click(beginButton);
     
-    // Welcome step of onboarding should be visible (lazy-loaded, so await it)
-    await waitFor(() => {
-      expect(screen.getByText('Welcome to Arcane Quantum Brain')).toBeInTheDocument();
-    });
+    // Welcome step of onboarding should be visible
+    expect(screen.getByText('Welcome to Arcane Quantum Brain')).toBeInTheDocument();
   });
 
   it('hides onboarding wizard if previously completed', () => {

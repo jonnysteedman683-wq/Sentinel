@@ -1,7 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PresenceOrb } from "./components/PresenceOrb.js";
 import { TypewriterText } from "./components/TypewriterText.js";
+import { PolicyConvergenceChart } from "./components/PolicyConvergenceChart.js";
+import { MemoryTab } from "./components/tabs/MemoryTab.js";
+import { BrainsTab } from "./components/tabs/BrainsTab.js";
+import { IdentityTab } from "./components/tabs/IdentityTab.js";
+import { GoalFormationUI } from "./components/tabs/GoalFormationUI.js";
+import { SystemDiagnosticsUI } from "./components/tabs/SystemDiagnosticsUI.js";
+import { LiveCompiler } from "./components/tabs/LiveCompiler.js";
+import { DiffViewer } from "./components/tabs/DiffViewer.js";
 import { InfoTooltip } from "./components/InfoTooltip.js";
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { handleSlashCommand, CommandContext } from './lib/CommandDelegator.js';
@@ -13,51 +21,33 @@ import { SelfHealingErrorCard } from './components/SelfHealingErrorCard.js';
 import { ErrorProvider, useErrors } from './components/DiagnosticOverlay.js';
 import { LocalOnlyModeBanner } from './components/LocalOnlyModeBanner.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
-import { useIsMobile } from './hooks/useIsMobile.js';
 import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
 import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split, Stethoscope } from 'lucide-react';
+import VitalsDashboard from "./components/VitalsDashboard.js";
+import { SentimentDriftChart } from "./components/SentimentDriftChart.js";
+import { MindMap } from "./components/MindMap.js";
 import { CuriousAgent } from './lib/rl-agent.js';
+import { Brainstorm } from './components/Brainstorm.js';
+import { NeuralIntentPanel } from "./components/NeuralIntentPanel.js";
 // import { NeuralDebugger } from './components/NeuralDebugger.js';
 import { LandingScreen } from './components/LandingScreen.js';
+import { AutoDebugger } from './components/AutoDebugger.js';
+import TelemetryDashboard from './components/TelemetryDashboard.js';
+import SwarmVisualizer from './components/SwarmVisualizer.js';
+import CognitiveCanvas from './components/CognitiveCanvas.js';
+import DreamCinema from './components/DreamCinema.js';
+import { PredictiveRolloutPanel } from './components/PredictiveRolloutPanel.js';
 import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
 import { ConsolidationSuggestion, ConsolidationProposal } from './components/ConsolidationSuggestion.js';
 import { VoiceBridge } from './components/VoiceBridge.js';
-import { PWAUpdatePrompt } from './components/PWAUpdatePrompt.js';
+import { OnboardingWizard } from './components/OnboardingWizard.js';
 import InsightReveal from './components/InsightReveal.js';
 import { ReasoningTree } from './components/ReasoningTree.js';
 import InsightFeed from './components/InsightFeed.js';
 import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, InsightData, ingestTelemetry } from './lib/api.js';
 import { auth, db, googleSignIn, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
 import { ContextMenu } from './components/ContextMenu.js';
-
-// Lazy-loaded tab components for code-splitting (reduces initial bundle by ~70%)
-const PolicyConvergenceChart = lazy(() => import('./components/PolicyConvergenceChart.js').then(m => ({ default: m.PolicyConvergenceChart })));
-const MemoryTab = lazy(() => import('./components/tabs/MemoryTab.js').then(m => ({ default: m.MemoryTab })));
-const BrainsTab = lazy(() => import('./components/tabs/BrainsTab.js').then(m => ({ default: m.BrainsTab })));
-const IdentityTab = lazy(() => import('./components/tabs/IdentityTab.js').then(m => ({ default: m.IdentityTab })));
-const GoalFormationUI = lazy(() => import('./components/tabs/GoalFormationUI.js').then(m => ({ default: m.GoalFormationUI })));
-const SystemDiagnosticsUI = lazy(() => import('./components/tabs/SystemDiagnosticsUI.js').then(m => ({ default: m.SystemDiagnosticsUI })));
-const LiveCompiler = lazy(() => import('./components/tabs/LiveCompiler.js').then(m => ({ default: m.LiveCompiler })));
-const DiffViewer = lazy(() => import('./components/tabs/DiffViewer.js').then(m => ({ default: m.DiffViewer })));
-const VitalsDashboard = lazy(() => import('./components/VitalsDashboard.js'));
-const SentimentDriftChart = lazy(() => import('./components/SentimentDriftChart.js').then(m => ({ default: m.SentimentDriftChart })));
-const MindMap = lazy(() => import('./components/MindMap.js').then(m => ({ default: m.MindMap })));
-const Brainstorm = lazy(() => import('./components/Brainstorm.js').then(m => ({ default: m.Brainstorm })));
-const NeuralIntentPanel = lazy(() => import('./components/NeuralIntentPanel.js').then(m => ({ default: m.NeuralIntentPanel })));
-const AutoDebugger = lazy(() => import('./components/AutoDebugger.js').then(m => ({ default: m.AutoDebugger })));
-const TelemetryDashboard = lazy(() => import('./components/TelemetryDashboard.js'));
-const SwarmVisualizer = lazy(() => import('./components/SwarmVisualizer.js'));
-const CognitiveCanvas = lazy(() => import('./components/CognitiveCanvas.js'));
-const DreamCinema = lazy(() => import('./components/DreamCinema.js'));
-const PredictiveRolloutPanel = lazy(() => import('./components/PredictiveRolloutPanel.js').then(m => ({ default: m.PredictiveRolloutPanel })));
-const OnboardingWizard = lazy(() => import('./components/OnboardingWizard.js').then(m => ({ default: m.OnboardingWizard })));
-
-const LazyFallback = () => (
-  <div className="flex items-center justify-center h-full w-full min-h-[200px]">
-    <div className="text-slate-500 text-xs font-mono uppercase tracking-widest animate-pulse">Loading module...</div>
-  </div>
-);
 
 type ModelState = 'Idle' | 'Listening' | 'Reasoning' | 'Learning' | 'Nudging' | 'Consolidating' | 'Inspired' | 'Syncing';
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
@@ -232,7 +222,7 @@ function MainApp() {
   };
 
   const [qValueHistory, setQValueHistory] = useState<{ episode: number; qValue: number }[]>(
-    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0 }))
+    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0.5 + Math.random() * 0.4 }))
   );
 
   // Dynamic Vitals & Health Tracking
@@ -278,15 +268,9 @@ function MainApp() {
 
       setQValueHistory(prev => {
         const nextEpisode = prev[prev.length - 1].episode + 1;
-        // Get real Q-value from the agent's DQN
-        let nextQValue = 0;
-        try {
-          if (rlAgent.current) {
-            nextQValue = rlAgent.current.getMeanQValue();
-          }
-        } catch (e) {
-          // TF.js not ready yet, use 0
-        }
+        const lastQValue = prev[prev.length - 1].qValue;
+        const convergence = 0.95;
+        const nextQValue = lastQValue * convergence + (Math.random() * 0.1);
         ingestTelemetry({ type: 'q_convergence', data: { episode: nextEpisode, qValue: nextQValue } });
         return [...prev.slice(1), { episode: nextEpisode, qValue: nextQValue }];
       });
@@ -303,7 +287,6 @@ function MainApp() {
   const [debateState, sendDebate] = useMachine(debateMachine);
 
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<SidebarTab>('Chat');
   const [chatLayout, setChatLayout] = useState<'linear' | 'canvas'>('linear');
   const [circadianState, setCircadianState] = useState<{ hour: number; multiplier: number; phase: string }>({
@@ -2410,7 +2393,7 @@ function MainApp() {
 
   return (
     <>
-      {showOnboarding && <Suspense fallback={<LazyFallback />}><OnboardingWizard onComplete={handleOnboardingComplete} /></Suspense>}
+      {showOnboarding && <OnboardingWizard onComplete={handleOnboardingComplete} />}
       {isApiUnreachable && <LocalOnlyModeBanner />}
 
       <div className={`flex h-screen w-full transition-colors duration-500 overflow-hidden font-sans relative selection:bg-teal-500/30 ${
@@ -2433,9 +2416,8 @@ function MainApp() {
       <div className="flex z-10 w-full h-full relative backdrop-blur-[2px]">
         
         {/* Left Rail: Memory & Skills Panel */}
-        <nav className={`flex-shrink-0 transition-all duration-300 ease-in-out ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/60'} backdrop-blur-md overflow-hidden z-30
-        fixed bottom-0 left-0 right-0 h-16 flex flex-row items-center justify-around py-2 border-t md:border-t-0 md:border-r md:relative md:h-full md:w-20 md:flex-col md:py-4 md:justify-start`}>
-           <div className="relative flex items-center justify-center w-10 h-10 cursor-pointer md:mb-4 hidden md:flex" onClick={() => setSidebarOpen(!isSidebarOpen)}>
+        <nav className={`w-16 md:w-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/60'} backdrop-blur-md overflow-hidden flex flex-col items-center py-4 z-30`}>
+           <div className="relative flex items-center justify-center w-10 h-10 mb-4 cursor-pointer" onClick={() => setSidebarOpen(!isSidebarOpen)}>
              <svg viewBox="0 0 24 24" className={`w-full h-full stroke-amber-400 ${theme === 'dark' ? 'fill-amber-950/50' : 'fill-amber-100/50'}`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -2444,55 +2426,55 @@ function MainApp() {
              <span className="absolute text-[9px] font-bold text-amber-500 translate-y-[2px]">AQB</span>
            </div>
 
-           <div className="flex flex-row md:flex-col gap-1 md:gap-2 w-full px-2 md:mt-4 overflow-x-auto md:overflow-visible scrollbar-hide justify-around md:justify-start flex-1 md:flex-none">
-             <button onClick={() => handleTabChange('Chat')} title="Neural Interface" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Chat' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+           <div className="flex flex-col gap-2 w-full px-2 mt-4">
+             <button onClick={() => handleTabChange('Chat')} title="Neural Interface" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Chat' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <MessageSquare className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Memory')} title="Memory" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memory' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Memory')} title="Memory" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memory' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Brain className={`w-5 h-5 ${isConsolidating ? 'animate-pulse text-teal-300' : ''}`} />
              </button>
-             <button onClick={() => handleTabChange('Identity')} title="Identity" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Identity' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Identity')} title="Identity" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Identity' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Fingerprint className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Goals')} title="Goals" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Goals' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Goals')} title="Goals" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Goals' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Target className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Diagnostics')} title="Diagnostics" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Diagnostics' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Diagnostics')} title="Diagnostics" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Diagnostics' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Stethoscope className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Swarm')} title="Agentic Swarm" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Swarm' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Swarm')} title="Agentic Swarm" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Swarm' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Network className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Dream Cinema')} title="Dream Cinema" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Dream Cinema' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Dream Cinema')} title="Dream Cinema" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Dream Cinema' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Film className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Sandbox')} title="Sandbox" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Sandbox' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Sandbox')} title="Sandbox" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Sandbox' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Code2 className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Brains')} title="Brains" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brains' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Brains')} title="Brains" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brains' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Cpu className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Heartbeat')} title="Heartbeat" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Heartbeat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Heartbeat')} title="Heartbeat" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Heartbeat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Activity className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Mind Map')} title="Mind Map" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Mind Map' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Mind Map')} title="Mind Map" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Mind Map' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Network className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Brainstorm')} title="Brainstorm" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brainstorm' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Brainstorm')} title="Brainstorm" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brainstorm' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Lightbulb className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Logs')} title="Logs" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Logs' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Logs')} title="Logs" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Logs' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Terminal className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Telemetry')} title="Telemetry" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Telemetry' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Telemetry')} title="Telemetry" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Telemetry' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Database className="w-5 h-5" />
              </button>
-             <button onClick={() => handleTabChange('Workspace')} title="Workspace" className={`p-2 md:p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Workspace' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
+             <button onClick={() => handleTabChange('Workspace')} title="Workspace" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Workspace' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Search className="w-5 h-5" />
              </button>
            </div>
            
-           <div className="flex md:mt-auto md:flex-col md:gap-2 w-full px-2 justify-center">
+           <div className="mt-auto flex flex-col gap-2 w-full px-2">
              <button onClick={() => setIsSettingsOpen(true)} title="Settings" className={`p-3 w-full flex items-center justify-center rounded-xl transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
                <Settings className="w-5 h-5" />
              </button>
@@ -2502,7 +2484,7 @@ function MainApp() {
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 relative h-full">
           {/* Top Bar */}
-          <header className={`h-16 border-b ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-black/5 bg-white/40'} backdrop-blur-sm flex items-center justify-between px-3 sm:px-6 flex-shrink-0 z-20`}>
+          <header className={`h-16 border-b ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-black/5 bg-white/40'} backdrop-blur-sm flex items-center justify-between px-6 flex-shrink-0 z-20`}>
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSidebarOpen(!isSidebarOpen)}
@@ -2525,7 +2507,7 @@ function MainApp() {
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
                       Status: {modelState}
                     </span>
-                    <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-medium ml-3 border-l border-white/10 pl-3 hidden md:inline">
+                    <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-medium ml-3 border-l border-white/10 pl-3">
                       Circadian: {circadianState.phase} ({circadianState.multiplier.toFixed(1)}x)
                     </span>
                   </div>
@@ -2535,7 +2517,7 @@ function MainApp() {
             
             <div className="flex items-center gap-2">
               {activeTab === 'Chat' && (
-                <div className="hidden sm:flex items-center gap-1.5 mr-3 bg-white/5 border border-white/10 rounded-lg p-1.5">
+                <div className="flex items-center gap-1.5 mr-3 bg-white/5 border border-white/10 rounded-lg p-1.5">
                   <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold font-mono">Timeline:</span>
                   <select
                     value={activeThreadId}
@@ -2551,7 +2533,7 @@ function MainApp() {
                 </div>
               )}
               {activeTab === 'Chat' && (
-                <div className="hidden sm:flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5 mr-2">
+                <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5 mr-2">
                   <button 
                     onClick={() => setChatLayout('linear')}
                     className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${chatLayout === 'linear' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'text-slate-400 hover:text-slate-200'}`}
@@ -2597,7 +2579,7 @@ function MainApp() {
               <>
                 {chatLayout === 'canvas' ? (
                   <div className="flex-grow w-full h-[550px] min-h-[400px] p-4 overflow-hidden relative z-10">
-                    <Suspense fallback={<LazyFallback />}><CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp ?? Date.now() }))} /></Suspense>
+                    <CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp ?? Date.now() }))} />
                   </div>
                 ) : (
                   <div className="flex-1 overflow-hidden relative flex flex-col">
@@ -2620,7 +2602,7 @@ function MainApp() {
           <InsightFeed onReward={(r) => rlAgent.current?.applyDelayedInsightReward(r)} />
             
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-6 z-10 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-6 z-10 scroll-smooth">
               <div className="max-w-3xl mx-auto space-y-8 pb-10">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`group relative flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
@@ -2913,11 +2895,11 @@ function MainApp() {
         )}
 
           {/* Bottom Control Bar */}
-          <div className="p-3 sm:p-6 border-t border-white/5 bg-black/40 backdrop-blur-md z-20 pb-20 md:pb-6">
+          <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md z-20">
             <div className="max-w-3xl mx-auto">
               
               {/* Cognition Depth Slider */}
-              <div className="mb-3 sm:mb-4 flex flex-wrap gap-3 sm:gap-4 px-1 sm:px-2">
+              <div className="mb-4 flex flex-col md:flex-row items-center justify-between gap-4 px-2">
                 <div className="flex items-center gap-6">
                   <div className="flex flex-col">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
@@ -2940,7 +2922,7 @@ function MainApp() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col border-l border-white/5 pl-6 hidden md:flex">
+                  <div className="flex flex-col border-l border-white/5 pl-6">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
                       <Network className="w-3 h-3" /> Consensus Mode
                     </span>
@@ -2958,7 +2940,7 @@ function MainApp() {
                     </button>
                   </div>
                   
-                  <div className="flex flex-col border-l border-white/5 pl-6 hidden md:flex">
+                  <div className="flex flex-col border-l border-white/5 pl-6">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
                       <Zap className="w-3 h-3" /> Superposition
                     </span>
@@ -3041,8 +3023,7 @@ function MainApp() {
                 </div>
               </>
             ) : (
-              <div className="p-3 sm:p-6 flex-1 overflow-y-auto w-full h-full custom-scrollbar pb-20 md:pb-6">
-              <Suspense fallback={<LazyFallback />}>
+              <div className="p-6 flex-1 overflow-y-auto w-full h-full custom-scrollbar">
                 {activeTab === 'Memory' ? (
               <MemoryTab 
                 memoryViewMode={memoryViewMode}
@@ -3361,7 +3342,6 @@ function MainApp() {
                   />
                 </div>
               ) : null}
-              </Suspense>
             </div>
           )}
               </motion.div>
@@ -3397,7 +3377,7 @@ function MainApp() {
         <div className="absolute inset-0 z-50 pointer-events-none">
           {isSettingsOpen && (
             <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-[#12121a] border border-white/10 w-full max-w-md max-h-[85vh] rounded-2xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-200 mx-3 sm:mx-0">
+              <div className="bg-[#12121a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
                   <h3 className="text-lg font-semibold text-slate-200 tracking-tight flex items-center gap-2">
                     <Settings className="w-5 h-5 text-indigo-400" />
@@ -3529,7 +3509,6 @@ function MainApp() {
           onSpeechRecognized={handleSpeechRecognized} 
           textToSpeak={textToSpeak} 
         />
-        <PWAUpdatePrompt />
 
       </div>
     </div>

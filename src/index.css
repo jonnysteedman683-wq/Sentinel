@@ -50,12 +50,3 @@ body {
 .sentiment-themed {
   border-color: hsl(var(--app-hue), 70%, 50%);
 }
-
-/* Hide scrollbar for mobile bottom nav */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
