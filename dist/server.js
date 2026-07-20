@@ -4296,7 +4296,7 @@ var SelfHealingOrchestrator = class {
 };
 
 // server.ts
-import { createContext, runInContext } from "vm";
+import ivm from "isolated-vm";
 
 // src/lib/voice-gateway.ts
 import https from "https";
@@ -4414,10 +4414,21 @@ var MemoryNodeSchema = z.object({
 process.env.TF_ENABLE_ONEDNN_OPTS = "0";
 var executeCodeInternal = (code) => {
   try {
-    const sandbox = { console: { log: (...args) => console.log(...args) }, result: null };
-    createContext(sandbox);
-    runInContext(code, sandbox, { timeout: 1e3 });
-    return JSON.stringify(sandbox.result);
+    const isolate = new ivm.Isolate({ memoryLimit: 128 });
+    const context = isolate.createContextSync();
+    const jail = context.global;
+    jail.setSync("global", jail.derefInto());
+    context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            // Do nothing, or log to process.stdout if needed,
+            // but for safety in isolated-vm we can just drop it for this internal function.
+          }
+        };
+      `);
+    jail.setSync("codeToRun", code);
+    const result = context.evalSync("eval(codeToRun)", { timeout: 1e3 });
+    return JSON.stringify(result);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
@@ -6867,31 +6878,26 @@ Provide a final, highly structured, comprehensive answer.`;
     try {
       const { code } = req.body;
       if (!code) return res.status(400).json({ error: "No code provided" });
-      let output = "";
-      const sandbox = {
-        console: {
-          log: (...args) => {
-            output += args.join(" ") + "\\n";
-          },
-          error: (...args) => {
-            output += "[ERROR] " + args.join(" ") + "\\n";
-          },
-          warn: (...args) => {
-            output += "[WARN] " + args.join(" ") + "\\n";
-          }
-        },
-        Math,
-        Date,
-        Array,
-        Object,
-        String,
-        Number,
-        Boolean,
-        JSON,
-        setTimeout: (fn, ms) => setTimeout(fn, ms)
-      };
-      const context = createContext(sandbox);
-      const result = runInContext(code, context, { timeout: 1e3 });
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync("global", jail.derefInto());
+      context.evalSync(`
+        let _output = "";
+        global.console = {
+          log: function(...args) { _output += args.join(" ") + "\\n"; },
+          error: function(...args) { _output += "[ERROR] " + args.join(" ") + "\\n"; },
+          warn: function(...args) { _output += "[WARN] " + args.join(" ") + "\\n"; }
+        };
+      `);
+      jail.setSync("codeToRun", `(() => { ${code} })()`);
+      let result;
+      try {
+        result = context.evalSync("eval(codeToRun)", { timeout: 1e3 });
+      } catch (err) {
+        throw new Error(err.message);
+      }
+      const output = context.evalSync("_output");
       res.json({
         success: true,
         output: output.trim(),
@@ -7229,10 +7235,20 @@ Synthesize ONE insight (2-4 sentences): the dominant theme, an emergent pattern,
     if (!validated.success) return res.status(400).json({ error: "No code provided" });
     const { code } = validated.data;
     try {
-      const sandbox = { console: { log: (...args) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1e3 });
-      res.json({ result: sandbox.result });
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync("global", jail.derefInto());
+      context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            // Drop output for this simple route, similar to original behavior
+          }
+        };
+      `);
+      jail.setSync("codeToRun", code);
+      const result = context.evalSync("eval(codeToRun)", { timeout: 1e3 });
+      res.json({ result });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }

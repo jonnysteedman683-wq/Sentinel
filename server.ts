@@ -24,17 +24,31 @@ import { AgenticSwarm, SwarmState } from "./src/lib/swarm-engine.js";
 import { SystemHealthCollector } from "./src/lib/system-health-collector.js";
 import { SelfHealingOrchestrator } from "./src/lib/self-healing-orchestrator.js";
 import { localTraces } from "./src/lib/telemetry.js";
-import { createContext, runInContext } from "vm";
+import ivm from "isolated-vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 
 export const executeCodeInternal = (code: string): string => {
     try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      return JSON.stringify(sandbox.result);
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
+
+      context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            // Do nothing, or log to process.stdout if needed,
+            // but for safety in isolated-vm we can just drop it for this internal function.
+          }
+        };
+      `);
+
+      jail.setSync('codeToRun', code);
+      const result = context.evalSync('eval(codeToRun)', { timeout: 1000 });
+
+      return JSON.stringify(result);
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     }
@@ -2988,26 +3002,29 @@ Provide a final, highly structured, comprehensive answer.`;
       const { code } = req.body;
       if (!code) return res.status(400).json({ error: "No code provided" });
 
-      let output = "";
-      const sandbox = {
-        console: {
-          log: (...args: any[]) => { output += args.join(" ") + "\\n"; },
-          error: (...args: any[]) => { output += "[ERROR] " + args.join(" ") + "\\n"; },
-          warn: (...args: any[]) => { output += "[WARN] " + args.join(" ") + "\\n"; }
-        },
-        Math,
-        Date,
-        Array,
-        Object,
-        String,
-        Number,
-        Boolean,
-        JSON,
-        setTimeout: (fn: any, ms: number) => setTimeout(fn, ms)
-      };
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
 
-      const context = createContext(sandbox);
-      const result = runInContext(code, context, { timeout: 1000 }); // 1s timeout to prevent infinite loops
+      context.evalSync(`
+        let _output = "";
+        global.console = {
+          log: function(...args) { _output += args.join(" ") + "\\n"; },
+          error: function(...args) { _output += "[ERROR] " + args.join(" ") + "\\n"; },
+          warn: function(...args) { _output += "[WARN] " + args.join(" ") + "\\n"; }
+        };
+      `);
+
+      jail.setSync('codeToRun', `(() => { ${code} })()`);
+      let result;
+      try {
+        result = context.evalSync('eval(codeToRun)', { timeout: 1000 });
+      } catch (err) {
+        throw new Error(err.message);
+      }
+
+      const output = context.evalSync('_output');
 
       res.json({
         success: true,
@@ -3411,10 +3428,23 @@ Provide a final, highly structured, comprehensive answer.`;
     const { code } = validated.data;
     
     try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      res.json({ result: sandbox.result });
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
+
+      context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            // Drop output for this simple route, similar to original behavior
+          }
+        };
+      `);
+
+      jail.setSync('codeToRun', code);
+      const result = context.evalSync('eval(codeToRun)', { timeout: 1000 });
+
+      res.json({ result: result });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
