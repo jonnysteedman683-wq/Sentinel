@@ -28,6 +28,15 @@ class ReplayBuffer {
     }
     this.buffer.push([state, action, reward, next_state]);
   }
+  pushBatch(experiences: Array<[number[], number, number, number[]]>): void {
+    const combined = this.buffer.concat(experiences);
+    if (combined.length > this.capacity) {
+      this.buffer = combined.slice(combined.length - this.capacity);
+    } else {
+      this.buffer = combined;
+    }
+  }
+
 
   sample(batch_size: number): [number[][], number[], number[], number[][]] {
     const batch = [];
@@ -190,6 +199,17 @@ export class CuriousAgent {
     this.buffer.push(s, actionIndex, r, ns);
     this.experienceBuffer.push({ state: s, action: actionIndex, reward: r, nextState: ns, done: false });
   }
+  rememberBatch(experiences: any[]) {
+    const mappedTuples: Array<[number[], number, number, number[]]> = [];
+    const mappedExps: ExperienceTuple[] = experiences.map(exp => {
+      const actionIndex = typeof exp.action === "number" ? exp.action : (exp.action.index ?? (exp.action.type === "option" ? 99 : 0));
+      mappedTuples.push([exp.state, actionIndex, exp.reward, exp.nextState]);
+      return { state: exp.state, action: actionIndex, reward: exp.reward, nextState: exp.nextState, done: false };
+    });
+    this.buffer.pushBatch(mappedTuples);
+    this.experienceBuffer = this.experienceBuffer.concat(mappedExps);
+  }
+
 
   async flushExperiences(userId: string) {
     if (this.experienceBuffer.length === 0) return;
