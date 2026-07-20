@@ -4296,7 +4296,7 @@ var SelfHealingOrchestrator = class {
 };
 
 // server.ts
-import { createContext, runInContext } from "vm";
+import ivm from "isolated-vm";
 
 // src/lib/voice-gateway.ts
 import https from "https";
@@ -4412,14 +4412,37 @@ var MemoryNodeSchema = z.object({
 
 // server.ts
 process.env.TF_ENABLE_ONEDNN_OPTS = "0";
-var executeCodeInternal = (code) => {
+var executeCodeInternal = async (code) => {
   try {
-    const sandbox = { console: { log: (...args) => console.log(...args) }, result: null };
-    createContext(sandbox);
-    runInContext(code, sandbox, { timeout: 1e3 });
-    return JSON.stringify(sandbox.result);
+    const isolate = new ivm.Isolate({ memoryLimit: 128 });
+    const context = isolate.createContextSync();
+    const jail = context.global;
+    jail.setSync("global", jail.derefInto());
+    let output = "";
+    context.global.setSync("_log", new ivm.Callback((...args) => {
+      output += args.join(" ") + "\n";
+    }));
+    context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            _log(...args);
+          },
+          error: function(...args) {
+            _log('[ERROR]', ...args);
+          },
+          warn: function(...args) {
+            _log('[WARN]', ...args);
+          }
+        };
+      `);
+    const wrappedCode = `(async function() {
+        ${code}
+      })()`;
+    const script = isolate.compileScriptSync(wrappedCode);
+    const result = await script.run(context, { timeout: 1e3, promise: true, copy: true });
+    return { success: true, result, output };
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return { success: false, error: e.message, output: "" };
   }
 };
 var devOpsBrain = null;
@@ -6867,36 +6890,20 @@ Provide a final, highly structured, comprehensive answer.`;
     try {
       const { code } = req.body;
       if (!code) return res.status(400).json({ error: "No code provided" });
-      let output = "";
-      const sandbox = {
-        console: {
-          log: (...args) => {
-            output += args.join(" ") + "\\n";
-          },
-          error: (...args) => {
-            output += "[ERROR] " + args.join(" ") + "\\n";
-          },
-          warn: (...args) => {
-            output += "[WARN] " + args.join(" ") + "\\n";
-          }
-        },
-        Math,
-        Date,
-        Array,
-        Object,
-        String,
-        Number,
-        Boolean,
-        JSON,
-        setTimeout: (fn, ms) => setTimeout(fn, ms)
-      };
-      const context = createContext(sandbox);
-      const result = runInContext(code, context, { timeout: 1e3 });
-      res.json({
-        success: true,
-        output: output.trim(),
-        result: result !== void 0 ? result : null
-      });
+      const { success, result, output, error } = await executeCodeInternal(code);
+      if (success) {
+        res.json({
+          success: true,
+          output: output?.trim() || "",
+          result: result !== void 0 ? result : null
+        });
+      } else {
+        res.json({
+          success: false,
+          output: output?.trim() || "",
+          error: error || "Unknown error"
+        });
+      }
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
     }
@@ -7189,12 +7196,18 @@ Synthesize ONE insight (2-4 sentences): the dominant theme, an emergent pattern,
     if (!dbShim) return;
     try {
       const usersSnap = await dbShim.collection("users").limit(1e3).get();
-      for (const doc3 of usersSnap.docs) {
-        try {
-          await generateWeeklyInsightForUser(doc3.id);
-        } catch (e) {
-          console.error(`Error generating insight for ${doc3.id}:`, e);
-        }
+      const chunkSize = 10;
+      for (let i = 0; i < usersSnap.docs.length; i += chunkSize) {
+        const chunk = usersSnap.docs.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (doc3) => {
+            try {
+              await generateWeeklyInsightForUser(doc3.id);
+            } catch (e) {
+              console.error(`Error generating insight for ${doc3.id}:`, e);
+            }
+          })
+        );
       }
     } catch (e) {
       console.error("Error running weekly insight cron:", e);
@@ -7229,10 +7242,12 @@ Synthesize ONE insight (2-4 sentences): the dominant theme, an emergent pattern,
     if (!validated.success) return res.status(400).json({ error: "No code provided" });
     const { code } = validated.data;
     try {
-      const sandbox = { console: { log: (...args) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1e3 });
-      res.json({ result: sandbox.result });
+      const { success, result, error } = await executeCodeInternal(code);
+      if (success) {
+        res.json({ result });
+      } else {
+        res.status(500).json({ error });
+      }
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }

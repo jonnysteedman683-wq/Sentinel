@@ -18,6 +18,7 @@ import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
 import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split, Stethoscope } from 'lucide-react';
 import { CuriousAgent } from './lib/rl-agent.js';
+import { useAppUIState } from './hooks/useAppUIState.js';
 // import { NeuralDebugger } from './components/NeuralDebugger.js';
 import { LandingScreen } from './components/LandingScreen.js';
 import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
@@ -192,13 +193,12 @@ function cosineSimilarity(a: number[], b: number[]) {
 // --- Main Application ---
 function MainApp() {
   const { errors } = useErrors();
+  const { appView, setAppView, theme, setTheme, showOnboarding, handleOnboardingComplete } = useAppUIState();
   const isApiUnreachable = errors.some(e => e.error.code === 'GEMINI_API_FAILURE');
   const [modelState, setModelState] = useState<ModelState>('Idle');
   const [activeInsight, setActiveInsight] = useState<InsightData | null>(null);
-  const [appView, setAppView] = useState<'landing' | 'dashboard'>('landing');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]);
   const [neuralSway, setNeuralSway] = useState<{ spins: number[], total: number, multiplier: number }>({
     spins: [1, 1, 1],
@@ -217,19 +217,7 @@ function MainApp() {
     errors: 0
   });
   const [maintenanceHistory, setMaintenanceHistory] = useState<any[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  useEffect(() => {
-    const hasCompletedOnboarding = localStorage.getItem('onboardingComplete');
-    if (!hasCompletedOnboarding) {
-      setShowOnboarding(true);
-    }
-  }, []);
-
-  const handleOnboardingComplete = () => {
-    localStorage.setItem('onboardingComplete', 'true');
-    setShowOnboarding(false);
-  };
 
   const [qValueHistory, setQValueHistory] = useState<{ episode: number; qValue: number }[]>(
     Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0 }))
