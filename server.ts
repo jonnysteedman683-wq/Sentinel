@@ -157,21 +157,6 @@ let userKnowledgeBase: Record<string, KnowledgeDocument[]> = {};
 // Firestore is initialized and exported via firestore-shim
 console.log("[Firebase] Server-side Firestore initialized using Web API client connection.");
 
-// async function retryAsync<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-//   let lastError: any;
-//   for (let i = 0; i < retries; i++) {
-//     try {
-//       return await fn();
-//     } catch (e) {
-//       lastError = e;
-//       console.warn(`[Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
-//       await new Promise(res => setTimeout(res, delay));
-//       delay *= 2; // Exponential backoff
-//     }
-//   }
-//   throw lastError;
-// }
-
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[UnhandledRejection] At:', promise, 'reason:', reason);
   SystemHealthCollector.recordUnhandledError();
