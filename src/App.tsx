@@ -28,7 +28,7 @@ import InsightReveal from './components/InsightReveal.js';
 import { ReasoningTree } from './components/ReasoningTree.js';
 import InsightFeed from './components/InsightFeed.js';
 import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, InsightData, ingestTelemetry } from './lib/api.js';
-import { auth, db, googleSignIn, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
+import { auth, db, anonymousSignIn, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
 import { ContextMenu } from './components/ContextMenu.js';
 
 // Lazy-loaded tab components for code-splitting (reduces initial bundle by ~70%)
