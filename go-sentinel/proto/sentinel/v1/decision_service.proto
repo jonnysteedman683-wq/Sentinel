@@ -23,3 +23,4 @@ message GetActionResponse {
   string policy_id = 5;
   map<string, sentinel.events.v1.FeatureValue> context_used = 6;
 }
+option go_package = "sentinel/proto/sentinel/v1";
