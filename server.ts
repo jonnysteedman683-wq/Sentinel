@@ -24,19 +24,48 @@ import { AgenticSwarm, SwarmState } from "./src/lib/swarm-engine.js";
 import { SystemHealthCollector } from "./src/lib/system-health-collector.js";
 import { SelfHealingOrchestrator } from "./src/lib/self-healing-orchestrator.js";
 import { localTraces } from "./src/lib/telemetry.js";
-import { createContext, runInContext } from "vm";
+import ivm from "isolated-vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 
-export const executeCodeInternal = (code: string): string => {
+
+export const executeCodeInternal = async (code: string) => {
     try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      return JSON.stringify(sandbox.result);
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+      const isolate = new ivm.Isolate({ memoryLimit: 128 });
+      const context = isolate.createContextSync();
+      const jail = context.global;
+      jail.setSync('global', jail.derefInto());
+
+      let output = "";
+
+      context.global.setSync('_log', new ivm.Callback((...args) => {
+        output += args.join(' ') + '\n';
+      }));
+
+      context.evalSync(`
+        global.console = {
+          log: function(...args) {
+            _log(...args);
+          },
+          error: function(...args) {
+            _log('[ERROR]', ...args);
+          },
+          warn: function(...args) {
+            _log('[WARN]', ...args);
+          }
+        };
+      `);
+
+      const wrappedCode = `(async function() {
+        ${code}
+      })()`;
+
+      const script = isolate.compileScriptSync(wrappedCode);
+      const result = await script.run(context, { timeout: 1000, promise: true, copy: true });
+      return { success: true, result, output };
+    } catch (e: any) {
+      return { success: false, error: e.message, output: "" };
     }
 }
 
@@ -2988,32 +3017,21 @@ Provide a final, highly structured, comprehensive answer.`;
       const { code } = req.body;
       if (!code) return res.status(400).json({ error: "No code provided" });
 
-      let output = "";
-      const sandbox = {
-        console: {
-          log: (...args: any[]) => { output += args.join(" ") + "\\n"; },
-          error: (...args: any[]) => { output += "[ERROR] " + args.join(" ") + "\\n"; },
-          warn: (...args: any[]) => { output += "[WARN] " + args.join(" ") + "\\n"; }
-        },
-        Math,
-        Date,
-        Array,
-        Object,
-        String,
-        Number,
-        Boolean,
-        JSON,
-        setTimeout: (fn: any, ms: number) => setTimeout(fn, ms)
-      };
+      const { success, result, output, error } = await executeCodeInternal(code);
 
-      const context = createContext(sandbox);
-      const result = runInContext(code, context, { timeout: 1000 }); // 1s timeout to prevent infinite loops
-
-      res.json({
-        success: true,
-        output: output.trim(),
-        result: result !== undefined ? result : null
-      });
+      if (success) {
+        res.json({
+          success: true,
+          output: output?.trim() || "",
+          result: result !== undefined ? result : null
+        });
+      } else {
+        res.json({
+          success: false,
+          output: output?.trim() || "",
+          error: error || "Unknown error"
+        });
+      }
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
@@ -3411,10 +3429,12 @@ Provide a final, highly structured, comprehensive answer.`;
     const { code } = validated.data;
     
     try {
-      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
-      createContext(sandbox);
-      runInContext(code, sandbox, { timeout: 1000 });
-      res.json({ result: sandbox.result });
+      const { success, result, error } = await executeCodeInternal(code);
+      if (success) {
+        res.json({ result: result });
+      } else {
+        res.status(500).json({ error });
+      }
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
