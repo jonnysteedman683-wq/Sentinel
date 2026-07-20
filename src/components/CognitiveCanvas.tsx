@@ -11,7 +11,7 @@ import ReactFlow, {
 const ReactFlowComponent = ReactFlow as any;
 const BackgroundComponent = Background as any;
 import 'reactflow/dist/style.css';
-import { Brain, User, ShieldAlert } from 'lucide-react';
+import { Brain, User} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
