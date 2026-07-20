@@ -30,7 +30,7 @@ import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 
 
-export const executeCodeInternal = async (code: string) => {
+const executeCodeInternal = async (code: string) => {
     try {
       const isolate = new ivm.Isolate({ memoryLimit: 128 });
       const context = isolate.createContextSync();
