@@ -18,7 +18,6 @@ import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
 import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Fingerprint, Target, Server, Code2, Film, Split, Stethoscope } from 'lucide-react';
 import { CuriousAgent } from './lib/rl-agent.js';
-// import { NeuralDebugger } from './components/NeuralDebugger.js';
 import { LandingScreen } from './components/LandingScreen.js';
 import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
 import { ConsolidationSuggestion, ConsolidationProposal } from './components/ConsolidationSuggestion.js';
