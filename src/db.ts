@@ -1,5 +1,5 @@
 import { Dexie, type EntityTable } from 'dexie';
-import { Episode, SemanticEntry, SkillCard, Identity } from './types.ts';
+import { Episode, SemanticEntry, SkillCard, Identity } from './types.js';
 
 // We map the requested schema names to the types
 export interface EpisodicMemory extends Episode {}
@@ -43,7 +43,7 @@ export async function updateEpisodicMemory(id: string, changes: Partial<Episodic
 }
 
 export async function deleteEpisodicMemory(id: string): Promise<void> {
-  return await db.episodicMemory.delete(id);
+  await db.episodicMemory.delete(id);
 }
 
 // --- CRUD Functions for SemanticMemory ---
@@ -60,7 +60,7 @@ export async function updateSemanticMemory(id: string, changes: Partial<Semantic
 }
 
 export async function deleteSemanticMemory(id: string): Promise<void> {
-  return await db.semanticMemory.delete(id);
+  await db.semanticMemory.delete(id);
 }
 
 // --- CRUD Functions for SkillLibrary ---
@@ -77,7 +77,7 @@ export async function updateSkill(id: string, changes: Partial<SkillLibrary>): P
 }
 
 export async function deleteSkill(id: string): Promise<void> {
-  return await db.skillLibrary.delete(id);
+  await db.skillLibrary.delete(id);
 }
 
 // --- CRUD Functions for IdentityLog ---
@@ -94,5 +94,5 @@ export async function updateIdentityLog(id: string, changes: Partial<IdentityLog
 }
 
 export async function deleteIdentityLog(id: string): Promise<void> {
-  return await db.identityLog.delete(id);
+  await db.identityLog.delete(id);
 }
