@@ -3360,12 +3360,18 @@ Provide a final, highly structured, comprehensive answer.`;
     if (!db) return;
     try {
       const usersSnap = await db.collection('users').limit(1000).get();
-      for (const doc of usersSnap.docs) {
-        try {
-          await generateWeeklyInsightForUser(doc.id);
-        } catch (e) {
-          console.error(`Error generating insight for ${doc.id}:`, e);
-        }
+      const chunkSize = 10;
+      for (let i = 0; i < usersSnap.docs.length; i += chunkSize) {
+        const chunk = usersSnap.docs.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (doc) => {
+            try {
+              await generateWeeklyInsightForUser(doc.id);
+            } catch (e) {
+              console.error(`Error generating insight for ${doc.id}:`, e);
+            }
+          })
+        );
       }
     } catch (e) {
       console.error('Error running weekly insight cron:', e);
