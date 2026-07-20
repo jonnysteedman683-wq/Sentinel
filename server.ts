@@ -118,30 +118,6 @@ Output ONLY a valid JSON array of 6 numbers or a JSON object with keys: "coheren
     return fallback;
   }
 }
-
-// Helper to generate local fallback embeddings
-// function generateLocalEmbedding(text: string): number[] {
-//   const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-//   const vector = new Array(128).fill(0);
-//   for (const word of words) {
-//     let hash = 0;
-//     for (let i = 0; i < word.length; i++) {
-//       hash = (hash << 5) - hash + word.charCodeAt(i);
-//       hash |= 0;
-//     }
-//     const index = Math.abs(hash) % 128;
-//     vector[index] += 1;
-//   }
-//   const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-//   if (magnitude > 0) {
-//     for (let i = 0; i < vector.length; i++) {
-//       vector[i] /= magnitude;
-//     }
-//   }
-//   return vector;
-// }
-
-
 interface KnowledgeDocument {
   id: string;
   text: string;
