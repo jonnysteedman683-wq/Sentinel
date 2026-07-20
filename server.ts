@@ -3244,11 +3244,11 @@ Provide a final, highly structured, comprehensive answer.`;
           { name: "Wavefunction Collapse", description: "Consolidate superposition summary states during dreams", successRate: 0.88, useCount: 15, lastUsed: Date.now() - 3600000 },
           { name: "Circadian Bias Regulation", description: "Sinusoidal arousal adjustments gating consolidation", successRate: 1.0, useCount: 8, lastUsed: Date.now() - 7200000 }
         ];
-        for (const s of defaults) {
+        await Promise.all(defaults.map(async (s) => {
           const id = `skill-${Math.random().toString(36).substring(2, 7)}`;
           await db.collection(`users/${uid}/skills`).doc(id).set(s);
           skills.push({ id, ...s });
-        }
+        }));
       }
 
       const memSnap = await db.collection(`users/${uid}/memories`).orderBy('timestamp', 'desc').limit(10).get();
