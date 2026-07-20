@@ -373,7 +373,7 @@ export const VoiceBridge: React.FC<VoiceBridgeProps> = ({ onSpeechRecognized, te
   }, [cleanupAudio]);
 
   return (
-    <div className="fixed bottom-6 right-6 flex flex-col items-end gap-3 z-50 animate-in fade-in slide-in-from-bottom-6 duration-500">
+    <div className="fixed bottom-20 right-3 sm:bottom-6 sm:right-6 flex flex-col items-end gap-3 z-50 animate-in fade-in slide-in-from-bottom-6 duration-500">
       {/* Voice Picker Dropdown */}
       {showVoicePicker && (
         <div className="bg-slate-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-2xl w-56 animate-in fade-in slide-in-from-bottom-2 duration-200">
