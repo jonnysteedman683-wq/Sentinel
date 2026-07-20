@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Play, RotateCcw, ShieldAlert, Sparkles, MessageSquare, Zap, Cpu } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Film, Play, RotateCcw, Sparkles, MessageSquare } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface DreamCinemaProps {
   theme?: 'dark' | 'light';
