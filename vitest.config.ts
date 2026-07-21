@@ -28,10 +28,10 @@ export default defineConfig({
       // Floor set just below the current baseline so it guards against
       // regression; raise it as coverage improves.
       thresholds: {
-        statements: 13,
-        branches: 8,
-        functions: 12,
-        lines: 14,
+        statements: 15,
+        branches: 9,
+        functions: 13,
+        lines: 15,
       },
     },
   },
