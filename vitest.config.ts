@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import path from 'node:path';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
@@ -28,11 +28,11 @@ export default defineConfig({
       // Floor set just below the current baseline so it guards against
       // regression; raise it as coverage improves.
       thresholds: {
-        statements: 13,
-        branches: 8,
-        functions: 12,
-        lines: 14,
+        statements: 15,
+        branches: 9,
+        functions: 13,
+        lines: 15,
       },
     },
   },
-})
+});

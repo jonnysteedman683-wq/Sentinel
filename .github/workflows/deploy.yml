@@ -58,25 +58,51 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ---------------------------------------------------------------------------
-  # Optional: deploy the freshly-published image to Google Cloud Run.
-  # To enable, uncomment this job and configure repository secrets:
-  #   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT, GCP_PROJECT,
-  #   plus any runtime env/secrets the server needs (e.g. GEMINI_API_KEY).
+  # Deploy the freshly-published image to Google Cloud Run.
   #
-  # deploy-cloud-run:
-  #   name: Deploy to Cloud Run
-  #   needs: publish-image
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   steps:
-  #     - uses: google-github-actions/auth@v2
-  #       with:
-  #         workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-  #         service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-  #     - uses: google-github-actions/deploy-cloudrun@v2
-  #       with:
-  #         service: arcane-quantum-brain
-  #         image: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-  #         region: us-central1
+  # This job is SAFE to leave enabled: it self-skips (and reports success)
+  # until the GCP secrets below are configured, so it never fails merges to
+  # main. To activate a real deploy, add these repository secrets:
+  #   - GCP_WORKLOAD_IDENTITY_PROVIDER  (Workload Identity Federation provider)
+  #   - GCP_SERVICE_ACCOUNT             (service account email to impersonate)
+  # and optionally the repository variable GCP_REGION (defaults us-central1).
+  # The Cloud Run service also needs its own runtime env/secrets (e.g.
+  # GEMINI_API_KEY) configured on the service or via --set-secrets.
+  deploy-cloud-run:
+    name: Deploy to Cloud Run
+    needs: publish-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Prepare deploy
+        id: prep
+        env:
+          GCP_SA: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$GCP_SA" ]; then
+            echo "::notice::GCP secrets not configured — skipping Cloud Run deploy."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+          # GHCR image names must be lowercase; github.repository may not be.
+          echo "image=ghcr.io/${REPO,,}:sha-${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: steps.prep.outputs.enabled == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Cloud Run
+        if: steps.prep.outputs.enabled == 'true'
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: arcane-quantum-brain
+          image: ${{ steps.prep.outputs.image }}
+          region: ${{ vars.GCP_REGION || 'us-central1' }}
