@@ -13,5 +13,26 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/__tests__/**',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        'src/**/*.d.ts',
+        'src/scripts/**',
+      ],
+      // Floor set just below the current baseline so it guards against
+      // regression; raise it as coverage improves.
+      thresholds: {
+        statements: 13,
+        branches: 8,
+        functions: 12,
+        lines: 14,
+      },
+    },
   },
 })
