@@ -422,7 +422,7 @@ function MainApp() {
   const [activeThreadId, setActiveThreadId] = useState<string>('main');
 
   const messages = threads[activeThreadId] || [];
-  const setMessages = (updater: any) => {
+  const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
     setThreads(prev => {
       const current = prev[activeThreadId] || [];
       const next = typeof updater === 'function' ? updater(current) : updater;
@@ -1557,14 +1557,14 @@ function MainApp() {
               
               setMessages(prev => {
                 if (prev.some(m => m.id === aiDocRef.id)) return prev;
-                return [...prev, { id: aiDocRef.id, ...aiMessageData }];
+                return [...prev, { id: aiDocRef.id, ...aiMessageData } as unknown as Message];
               });
               await setDoc(aiDocRef, saveData);
             } catch (e) {
-              setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
+              setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData } as unknown as Message]);
             }
           } else {
-            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
+            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData } as unknown as Message]);
           }
           
           setModelState('Idle');

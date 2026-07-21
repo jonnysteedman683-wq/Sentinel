@@ -3142,7 +3142,7 @@ Provide a final, highly structured, comprehensive answer.`;
         });
 
         const text = response.text || "{}";
-        let parsed = { proposals: [] };
+        let parsed: { proposals: any[] } = { proposals: [] };
         try {
           parsed = JSON.parse(text);
         } catch (e) {
@@ -3349,7 +3349,7 @@ Provide a final, highly structured, comprehensive answer.`;
       for (let i = 0; i < usersSnap.docs.length; i += chunkSize) {
         const chunk = usersSnap.docs.slice(i, i + chunkSize);
         await Promise.all(
-          chunk.map(async (doc) => {
+          chunk.map(async (doc: any) => {
             try {
               await generateWeeklyInsightForUser(doc.id);
             } catch (e) {
