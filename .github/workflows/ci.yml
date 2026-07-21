@@ -27,6 +27,25 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
+  biome:
+    name: Biome (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Fetch base branch
+        run: git fetch --no-tags origin main
+      # Gate only files changed against main so the existing lint backlog
+      # doesn't block, but new/modified code must pass Biome.
+      - name: Biome check (changed files)
+        run: npx biome ci --changed --since=origin/main
+
   build:
     name: Build
     needs: typecheck
