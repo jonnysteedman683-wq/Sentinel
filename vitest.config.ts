@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html', 'lcov'],
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'server.ts'],
       exclude: [
         'src/**/*.test.{ts,tsx}',
         'src/**/__tests__/**',
@@ -28,10 +28,10 @@ export default defineConfig({
       // Floor set just below the current baseline so it guards against
       // regression; raise it as coverage improves.
       thresholds: {
-        statements: 15,
-        branches: 9,
-        functions: 13,
-        lines: 15,
+        statements: 18,
+        branches: 12,
+        functions: 14,
+        lines: 18,
       },
     },
   },
