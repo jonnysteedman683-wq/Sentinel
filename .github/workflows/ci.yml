@@ -84,6 +84,22 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  go-test:
+    name: Go Test (decision service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go-sentinel/go.mod
+          cache-dependency-path: go-sentinel/go.sum
+      - name: Vet
+        working-directory: go-sentinel
+        run: go vet ./internal/...
+      - name: Test
+        working-directory: go-sentinel
+        run: go test -race -cover ./internal/...
+
   docker:
     name: Docker Build
     needs: [build, test]
