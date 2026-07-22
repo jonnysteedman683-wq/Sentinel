@@ -43,8 +43,11 @@ jobs:
         run: git fetch --no-tags origin main
       # Gate only files changed against main so the existing lint backlog
       # doesn't block, but new/modified code must pass Biome.
+      # --no-errors-on-unmatched: a PR that changes only files outside Biome's
+      # scope (e.g. Go sources, workflows) yields zero matches, which Biome
+      # otherwise treats as an error.
       - name: Biome check (changed files)
-        run: npx biome ci --changed --since=origin/main
+        run: npx biome ci --no-errors-on-unmatched --changed --since=origin/main
 
   build:
     name: Build
