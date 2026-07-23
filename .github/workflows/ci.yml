@@ -43,8 +43,11 @@ jobs:
         run: git fetch --no-tags origin main
       # Gate only files changed against main so the existing lint backlog
       # doesn't block, but new/modified code must pass Biome.
+      # --no-errors-on-unmatched: a PR that changes only files outside Biome's
+      # scope (e.g. Go sources, workflows) yields zero matches, which Biome
+      # otherwise treats as an error.
       - name: Biome check (changed files)
-        run: npx biome ci --changed --since=origin/main
+        run: npx biome ci --no-errors-on-unmatched --changed --since=origin/main
 
   build:
     name: Build
@@ -83,6 +86,22 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 7
+
+  go-test:
+    name: Go Test (decision service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go-sentinel/go.mod
+          cache-dependency-path: go-sentinel/go.sum
+      - name: Vet
+        working-directory: go-sentinel
+        run: go vet ./internal/...
+      - name: Test
+        working-directory: go-sentinel
+        run: go test -race -cover ./internal/...
 
   docker:
     name: Docker Build
