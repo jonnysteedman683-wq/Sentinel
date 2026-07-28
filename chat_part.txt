@@ -1,0 +1,131 @@
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {activeTab === 'Chat' && (
+                <div className="hidden sm:flex items-center gap-1.5 mr-3 bg-white/5 border border-white/10 rounded-lg p-1.5">
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold font-mono">Timeline:</span>
+                  <select
+                    value={activeThreadId}
+                    onChange={(e) => setActiveThreadId(e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[9px] font-bold font-mono text-teal-400 focus:outline-none focus:border-teal-500/50"
+                  >
+                    {Object.keys(threads).map((tid) => (
+                      <option key={tid} value={tid} className="bg-slate-900 text-teal-300">
+                        {tid === 'main' ? 'Main' : `Timeline-${tid.split('_')[1]?.substring(0, 4) || tid.substring(0, 5)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {activeTab === 'Chat' && (
+                <div className="hidden sm:flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5 mr-2">
+                  <button
+                    onClick={() => setChatLayout('linear')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${chatLayout === 'linear' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Linear
+                  </button>
+                  <button
+                    onClick={() => setChatLayout('canvas')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${chatLayout === 'canvas' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Canvas
+                  </button>
+                </div>
+              )}
+              {activeTab === 'Chat' && (
+                <button
+                  onClick={clearChat}
+                  className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold ${
+                    theme === 'dark'
+                      ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                      : 'text-slate-500 hover:text-red-600 hover:bg-red-500/10'
+                  }`}
+                  title="Clear Chat History"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reset Brain</span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-hidden relative flex flex-col w-full h-full">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full h-full flex flex-col relative"
+              >
+            {activeTab === 'Chat' ? (
+              <>
+                {chatLayout === 'canvas' ? (
+                  <div className="flex-grow w-full h-[550px] min-h-[400px] p-4 overflow-hidden relative z-10">
+                    <Suspense fallback={<LazyFallback />}><CognitiveCanvas messages={messages.map(m => ({ id: m.id, role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) || '', timestamp: m.timestamp ?? Date.now() }))} /></Suspense>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-hidden relative flex flex-col">
+{/* Center Presence Orb */}
+            <div className="absolute inset-0 flex items-center justify-center z-0">
+              {/* Cognitive load incorporates efeScore, consolidation state, and deep processing state */}
+              <PresenceOrb
+                state={modelState}
+                depth={depth}
+                isSpeaking={isSpeaking}
+                cognitiveLoad={Math.min(1, Math.max(0, efeScore + (isConsolidating ? 0.3 : 0) + (modelState === 'Reasoning' || modelState === 'Learning' ? 0.2 : 0)))}
+              />
+            </div>
+          <InsightReveal
+            insight={activeInsight}
+            onSave={handleSaveInsight}
+            onDismiss={handleDismissInsight}
+            onTimeout={handleInsightTimeout}
+          />
+          <InsightFeed onReward={(r) => rlAgent.current?.applyDelayedInsightReward(r)} />
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 z-10 scroll-smooth">
+              <div className="max-w-3xl mx-auto space-y-8 pb-10">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`group relative flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                    <button
+                      onClick={() => handleBranchThread(msg.id)}
+                      className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-xl border border-white/10 bg-black/60 text-slate-400 hover:text-fuchsia-400 hover:border-fuchsia-500/30 transition-all z-20 ${
+                        msg.role === 'user'
+                          ? 'left-0 -translate-x-12'
+                          : 'right-0 translate-x-12'
+                      }`}
+                      title="Branch timeline from this message"
+                    >
+                      <Split className="w-4 h-4" />
+                    </button>
+                    <div className="flex flex-col gap-2 w-full max-w-full">
+                      {msg.content && msg.content !== "{}" && msg.content !== '""' && (
+                        <div
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({ x: e.clientX, y: e.clientY, msgId: msg.id });
+                          }}
+                          className={`max-w-[80%] p-5 rounded-2xl transition-all duration-300 ${
+                          msg.role === 'user'
+                            ? 'bg-gradient-to-br from-indigo-600/80 to-indigo-900/80 border border-indigo-500/30 text-white shadow-lg shadow-indigo-900/20 backdrop-blur-md rounded-tr-sm self-end'
+                            : theme === 'dark'
+                              ? 'bg-white/5 border border-white/10 text-slate-200 backdrop-blur-md shadow-xl rounded-tl-sm self-start'
+                              : 'bg-white border border-black/5 text-slate-800 shadow-lg rounded-tl-sm self-start'
+                        }`}>
+                          {msg.role === 'ai' ? (
+                            <div className="flex flex-col gap-5 w-full">
+                              <div className="flex items-start gap-4">
+                                <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0 mt-1">
+                                  <Cpu className="w-4 h-4 text-teal-400" />
+                                </div>
+                                <div className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                                  <TypewriterText
+                                    text={typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) || ''}
+                                    isTyping={!!msg.isTyping}
+                                    onComplete={() => {
