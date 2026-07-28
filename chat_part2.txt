@@ -1,0 +1,151 @@
+                                    onComplete={() => {
+                                      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isTyping: false } : m))
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                                {msg.superpositionBranches && msg.superpositionBranches.length > 0 && (
+                                  <ReasoningTree branches={msg.superpositionBranches} synthesis={msg.content} />
+                                )}
+
+                                {msg.cognitiveLog && (
+                                  <div className="mt-4 border-t border-white/5 pt-4">
+                                  <details className="group/cog">
+                                    <summary className="flex items-center gap-2 cursor-pointer text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-400 transition-colors list-none">
+                                      <div className="p-1 rounded-md bg-white/5 group-hover/cog:bg-indigo-500/20 transition-colors">
+                                        <Zap className="w-3 h-3" />
+                                      </div>
+                                      <span>Cognitive Process Trace</span>
+                                    </summary>
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">1. Draft</span>
+                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.draft === 'string' ? msg.cognitiveLog.draft : JSON.stringify(msg.cognitiveLog.draft)}</p>
+                                      </div>
+                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">2. Recollection</span>
+                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.recollection === 'string' ? msg.cognitiveLog.recollection : JSON.stringify(msg.cognitiveLog.recollection)}</p>
+                                      </div>
+                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">3. Reflection</span>
+                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.reflection === 'string' ? msg.cognitiveLog.reflection : JSON.stringify(msg.cognitiveLog.reflection)}</p>
+                                      </div>
+                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">4. Synthesis</span>
+                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.reiteration === 'string' ? msg.cognitiveLog.reiteration : JSON.stringify(msg.cognitiveLog.reiteration)}</p>
+                                      </div>
+                                    </div>
+                                  </details>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap">{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {msg.systemUI ? (
+                      <div className={`w-full max-w-2xl ${msg.role === 'user' ? 'self-end' : 'self-start'} mt-2`}>
+                        {msg.systemUI === 'help' && (
+                          <HelpWidget
+                            commands={msg.systemUIData?.commands || []}
+                            onCommandClick={(cmd) => {
+                              setInput(cmd);
+                              addLog(`Neural shortcut prepared: ${cmd}`, 'INFO', 'UI');
+                            }}
+                          />
+                        )}
+                        {msg.systemUI === 'vitals' && (
+                          <VitalsWidget
+                            vitals={msg.systemUIData?.vitals || vitals}
+                            memoryCount={msg.systemUIData?.memoryCount || memories.length}
+                            logCount={msg.systemUIData?.logCount || systemLogs.length}
+                          />
+                        )}
+                        {msg.systemUI === 'logs' && (
+                          <LogsWidget logs={msg.systemUIData?.logs || []} />
+                        )}
+                        {msg.systemUI === 'diagnose' && (
+                          <DiagnosticWidget
+                            uid={user?.uid || "anonymous"}
+                            db={db}
+                            auth={auth}
+                            addLog={(m, l, s) => addLog(m, l || 'INFO', s || 'DIAGNOSTIC')}
+                          />
+                        )}
+                        {msg.systemUI === 'reboot' && (
+                          <RebootWidget
+                            onComplete={() => {
+                              addLog("Reboot sequence completed. Synapses re-synchronized.", "NEURAL", "SYSTEM");
+                              setModelState('Idle');
+                            }}
+                          />
+                        )}
+                        {msg.systemUI === 'qpu-erd' && (
+                          <QpuErdWidget text={msg.systemUIData?.text} />
+                        )}
+                        {msg.systemUI === 'error-card' && (
+                          <SelfHealingErrorCard
+                            errorMessage={msg.systemUIData?.errorMessage || msg.content || "Connection disruption"}
+                            traceId={msg.systemUIData?.traceId}
+                            addLog={(m, l) => addLog(m, l, 'DIAGNOSTIC')}
+                            onOfflineSimulate={() => {
+                              addLog("Engaging neural offline simulation mode...", "WARN", "SYSTEM");
+                              const mockAiData = {
+                                role: 'ai' as const,
+                                content: "Offline Self-Healing Simulation Mode engaged! I have bypassed API latency channels and established a direct local loopback connection. Ask me anything, and I will generate local rule-based responses.",
+                                timestamp: Date.now(),
+                                traceId: msg.systemUIData?.traceId
+                              };
+                              if (user) {
+                                addDoc(collection(db, "users", user.uid, "chats"), mockAiData);
+                              } else {
+                                setMessages(prev => [...prev, { id: `mock-${Date.now()}`, ...mockAiData }]);
+                              }
+                            }}
+                            onRetry={async () => {
+                              addLog("Attempting synaptic retry transmission...", "WARN", "API");
+                              const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                              if (lastUserMsg && lastUserMsg.content) {
+                                setInput(lastUserMsg.content);
+                                setMessages(prev => prev.filter(m => m.id !== msg.id));
+                                if (user) {
+                                  try {
+                                    const errorDocRef = doc(db, "users", user.uid, "chats", msg.id);
+                                    await deleteDoc(errorDocRef);
+                                  } catch (e) {
+                                    console.warn("Could not delete stale error doc from firestore", e);
+                                  }
+                                }
+                                setTimeout(() => {
+                                  handleSend();
+                                }, 100);
+                              } else {
+                                addLog("No preceding user message found to retry.", "ERROR", "SYSTEM");
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Live Debate Progress Panel (XState-driven) */}
+                {!debateState.matches('idle') && (
+                  <div className="p-5 rounded-2xl border border-teal-500/20 bg-black/60 shadow-[0_0_30px_rgba(20,184,166,0.05)] space-y-4 animate-pulse">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Network className="w-4 h-4 text-teal-400 animate-spin" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-teal-300">
+                          Active Debate Chamber
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20">
+                        <span className="text-[9px] font-mono font-bold text-teal-400 uppercase">
+                          State: {String(debateState.value).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
