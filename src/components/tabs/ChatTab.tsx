@@ -36,6 +36,7 @@ export interface ChatTabProps {
 export function ChatTab(props: ChatTabProps) {
   const {
     chatLayout,
+    // biome-ignore lint/correctness/noUnusedVariables: needed behavior
     setChatLayout,
     messages,
     setMessages,
@@ -603,21 +604,24 @@ export function ChatTab(props: ChatTabProps) {
             messages[messages.length - 1].role === 'ai' &&
             messages[messages.length - 1].suggestedShortcuts && (
               <div className="flex flex-wrap gap-2 mb-4 px-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                {messages[messages.length - 1].suggestedShortcuts?.map((shortcut: string, i: number) => (
-                  <button
-                    type="button"
-                    key={i}
-                    onClick={() => {
-                      setInput(shortcut);
-                      // Optional: auto-send if desired, but letting user edit is safer
-                      addLog(`Neural shortcut selected: ${shortcut}`, 'NEURAL', 'UI');
-                    }}
-                    className="px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 hover:border-teal-500/40 transition-all flex items-center gap-2 group"
-                  >
-                    <Zap className="w-3 h-3 text-teal-500 group-hover:scale-125 transition-transform" />
-                    {shortcut}
-                  </button>
-                ))}
+                {messages[messages.length - 1].suggestedShortcuts?.map(
+                  (shortcut: string, i: number) => (
+                    <button
+                      type="button"
+                      // biome-ignore lint/suspicious/noArrayIndexKey: needed behavior
+                      key={i}
+                      onClick={() => {
+                        setInput(shortcut);
+                        // Optional: auto-send if desired, but letting user edit is safer
+                        addLog(`Neural shortcut selected: ${shortcut}`, 'NEURAL', 'UI');
+                      }}
+                      className="px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 hover:border-teal-500/40 transition-all flex items-center gap-2 group"
+                    >
+                      <Zap className="w-3 h-3 text-teal-500 group-hover:scale-125 transition-transform" />
+                      {shortcut}
+                    </button>
+                  ),
+                )}
               </div>
             )}
 

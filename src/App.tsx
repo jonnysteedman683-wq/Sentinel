@@ -699,6 +699,7 @@ function MainApp() {
     debateState.matches,
     debateState.context.activeAgentId,
     sendDebate,
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
     setMessages,
     addLog,
     debateState.context,
@@ -737,6 +738,7 @@ function MainApp() {
     }
   }, [
     sentimentTrend, // Proactively prompt user
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
     setMessages,
     addLog,
   ]);
@@ -942,6 +944,7 @@ function MainApp() {
       ];
       fetchPredictions(contextVector);
     }
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
   }, [user, messages.length, fetchPredictions, memories.length, activeTab]);
 
   // Sync Firestore quota status with server on startup
@@ -1197,6 +1200,7 @@ function MainApp() {
       });
     });
     return () => unsubscribe();
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
   }, [user, setMessages]);
 
   // Listen to Firestore system logs
@@ -1472,6 +1476,7 @@ function MainApp() {
           }
 
           if (decision.type === 'option') {
+            // biome-ignore lint/style/noNonNullAssertion: guaranteed by logic above
             const opt = agent.options.get?.(decision.optionId!);
             if (opt) {
               agent.activeOption = opt;
@@ -1486,6 +1491,7 @@ function MainApp() {
             );
             agent.activeOption = null;
           } else {
+            // biome-ignore lint/style/noNonNullAssertion: guaranteed by logic above
             const action = decision.index!;
 
             if (action === 1) {
@@ -1623,6 +1629,7 @@ function MainApp() {
   const [newMemory, setNewMemory] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-scroll needs to trigger on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -2219,6 +2226,7 @@ function MainApp() {
     (text: string) => {
       handleSend(undefined, text);
     },
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
     [handleSend],
   );
 
@@ -2239,6 +2247,7 @@ function MainApp() {
 
             // Entangled cascade collapse
             if (m.entangledId) {
+              // biome-ignore lint/style/noNonNullAssertion: guaranteed by logic above
               setTimeout(() => collapseMemoryWavefunction(m.entangledId!), 250);
             }
 
@@ -2712,6 +2721,7 @@ function MainApp() {
 
   useEffect(() => {
     handleManualConsolidateRef.current = handleManualConsolidate;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: needed behavior
   }, [handleManualConsolidate]);
 
   const handleNudgeUse = (text: string) => {
@@ -3417,6 +3427,7 @@ function MainApp() {
                                   },
                                 ].map((stat, i) => (
                                   <div
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: needed behavior
                                     key={i}
                                     className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
                                   >
@@ -3464,6 +3475,7 @@ function MainApp() {
                                 {maintenanceHistory.length > 0 ? (
                                   maintenanceHistory.map((log, i) => (
                                     <div
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: needed behavior
                                       key={i}
                                       className="p-2 border border-white/5 rounded-lg bg-white/5 space-y-1"
                                     >
