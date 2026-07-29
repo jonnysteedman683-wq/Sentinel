@@ -603,10 +603,10 @@ export function ChatTab(props: ChatTabProps) {
             messages[messages.length - 1].role === 'ai' &&
             messages[messages.length - 1].suggestedShortcuts && (
               <div className="flex flex-wrap gap-2 mb-4 px-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                {messages[messages.length - 1].suggestedShortcuts?.map((shortcut: any) => (
+                {messages[messages.length - 1].suggestedShortcuts?.map((shortcut: string, i: number) => (
                   <button
                     type="button"
-                    key={shortcut}
+                    key={i}
                     onClick={() => {
                       setInput(shortcut);
                       // Optional: auto-send if desired, but letting user edit is safer
