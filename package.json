@@ -35,7 +35,7 @@
     "firebase-admin": "^14.2.0",
     "force-graph": "^1.51.4",
     "groq-sdk": "^1.5.0",
-    "isolated-vm": "^6.1.2",
+    "isolated-vm": "^7.0.0",
     "lucide-react": "^1.28.0",
     "motion": "^12.43.0",
     "node-cron": "^4.6.0",
