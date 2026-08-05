@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import {
   initializeFirestore,
   getFirestore,
@@ -22,32 +22,28 @@ import {
 } from "firebase/firestore";
 import fs from "fs";
 import path from "path";
+import firebaseConfig from "../../firebase-applet-config.json" with { type: "json" };
+
+const isNode = typeof process !== "undefined" && typeof process.cwd === "function";
 
 let clientDb: ClientFirestore | null = null;
 let app: any = null;
 
 try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-      app = initializeApp(firebaseConfig);
-      // Try to get existing or initialize with identical options to firebase.ts
-      try {
-        clientDb = initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfig.firestoreDatabaseId);
-      } catch (e: any) {
-        if (e.code === 'failed-precondition' || e.message.includes('initializeFirestore')) {
-           clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-        } else {
-           throw e;
-        }
-      }
-      console.log("[Firestore Shim] Client Firestore Shim initialized with database:", firebaseConfig.firestoreDatabaseId);
-    } else {
-      console.warn("[Firestore Shim] Firebase config is incomplete, Firestore disabled.");
+  if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    const dbId = (firebaseConfig as any)?.firestoreDatabaseId;
+    try {
+      clientDb = dbId && dbId !== "(default)" ? getFirestore(app, dbId) : getFirestore(app);
+      console.log("[Firestore Shim] Client Firestore Shim attached to existing Firestore instance:", dbId || "(default)");
+    } catch (e) {
+      clientDb = dbId && dbId !== "(default)"
+        ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
+        : initializeFirestore(app, { experimentalForceLongPolling: true });
+      console.log("[Firestore Shim] Client Firestore Shim initialized Firestore with database:", dbId);
     }
   } else {
-    console.warn("[Firestore Shim] firebase-applet-config.json not found, Firestore disabled.");
+    console.warn("[Firestore Shim] Firebase config is incomplete, Firestore disabled.");
   }
 } catch (e) {
   console.error("[Firestore Shim] Failed to initialize Firestore:", e);
@@ -97,10 +93,10 @@ class QuerySnapshotShim {
 
 // Local in-memory DB fallback for server
 const serverMemoryDb: { [path: string]: any } = {};
-export let isServerQuotaExceeded = true;
-const sentinelPath = path.join(process.cwd(), ".firestore_quota_exceeded");
+export let isServerQuotaExceeded = false;
+const sentinelPath = isNode ? path.join(process.cwd(), ".firestore_quota_exceeded") : "";
 try {
-  if (fs.existsSync(sentinelPath)) {
+  if (isNode && sentinelPath && fs.existsSync(sentinelPath)) {
     isServerQuotaExceeded = true;
     console.warn("[Firestore Server Fallback] Proactively loaded quota-exceeded status. Operating in server memory DB mode.");
   }
@@ -109,7 +105,8 @@ try {
 }
 
 export function setServerQuotaExceeded(val: boolean) {
-  isServerQuotaExceeded = true; // Force true always
+  isServerQuotaExceeded = val;
+  if (!isNode || !sentinelPath) return;
   try {
     if (val) {
       fs.writeFileSync(sentinelPath, "true");
@@ -139,11 +136,19 @@ function isQuotaError(error: any): boolean {
   return (
     code.includes("resource-exhausted") ||
     code.includes("quota") ||
+    code.includes("not-found") ||
+    code.includes("not_found") ||
+    code === "5" ||
     msg.includes("quota") ||
     msg.includes("resource-exhausted") ||
     msg.includes("resource_exhausted") ||
     msg.includes("limit exceeded") ||
-    msg.includes("timed out")
+    msg.includes("timed out") ||
+    msg.includes("not_found") ||
+    msg.includes("not-found") ||
+    msg.includes("not found") ||
+    msg.includes("code: 5") ||
+    msg.includes("grpc")
   );
 }
 
@@ -285,14 +290,13 @@ export class DocumentReferenceShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key in copy) {
-      const val = copy[key];
-      if (val instanceof FieldValueShim) {
-        copy[key] = val.value;
-      } else if (Array.isArray(val)) {
-        copy[key] = val.map(item => this.processData(item));
-      } else if (typeof val === "object" && val !== null) {
-        copy[key] = this.processData(val);
+    for (const key of Object.keys(copy)) {
+      if (copy[key] instanceof FieldValueShim) {
+        copy[key] = copy[key].value;
+      } else if (Array.isArray(copy[key])) {
+        copy[key] = copy[key].map(item => this.processData(item));
+      } else if (typeof copy[key] === "object" && copy[key] !== null) {
+        copy[key] = this.processData(copy[key]);
       }
     }
     return copy;
@@ -424,14 +428,13 @@ export class CollectionReferenceShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key in copy) {
-      const val = copy[key];
-      if (val instanceof FieldValueShim) {
-        copy[key] = val.value;
-      } else if (Array.isArray(val)) {
-        copy[key] = val.map(item => this.processData(item));
-      } else if (typeof val === "object" && val !== null) {
-        copy[key] = this.processData(val);
+    for (const key of Object.keys(copy)) {
+      if (copy[key] instanceof FieldValueShim) {
+        copy[key] = copy[key].value;
+      } else if (Array.isArray(copy[key])) {
+        copy[key] = copy[key].map(item => this.processData(item));
+      } else if (typeof copy[key] === "object" && copy[key] !== null) {
+        copy[key] = this.processData(copy[key]);
       }
     }
     return copy;
@@ -529,14 +532,13 @@ class WriteBatchShim {
   private processData(data: any): any {
     if (data === null || typeof data !== "object") return data;
     const copy = { ...data };
-    for (const key in copy) {
-      const val = copy[key];
-      if (val instanceof FieldValueShim) {
-        copy[key] = val.value;
-      } else if (Array.isArray(val)) {
-        copy[key] = val.map(item => this.processData(item));
-      } else if (typeof val === "object" && val !== null) {
-        copy[key] = this.processData(val);
+    for (const key of Object.keys(copy)) {
+      if (copy[key] instanceof FieldValueShim) {
+        copy[key] = copy[key].value;
+      } else if (Array.isArray(copy[key])) {
+        copy[key] = copy[key].map(item => this.processData(item));
+      } else if (typeof copy[key] === "object" && copy[key] !== null) {
+        copy[key] = this.processData(copy[key]);
       }
     }
     return copy;

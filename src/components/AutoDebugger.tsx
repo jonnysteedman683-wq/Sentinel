@@ -25,7 +25,7 @@ export const AutoDebugger: React.FC<AutoDebuggerProps> = ({ logs }) => {
         <Terminal className="w-4 h-4 text-teal-400" />
         Auto Debugger
       </h2>
-      <div className="space-y-2 max-h-60 overflow-y-auto">
+      <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
         {recentErrors.length === 0 ? (
           <p className="text-xs text-slate-500 italic">No critical errors detected.</p>
         ) : (

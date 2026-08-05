@@ -169,11 +169,11 @@ export class Dense {
 
     for (let i = 0; i < this.in_dim; i++) {
       for (let j = 0; j < this.out_dim; j++) {
-        this.W[i][j] -= this.lr * grad_W[i][j];
+        this.W[i][j] -= this.lr * (grad_W[i][j] || 0);
       }
     }
     for (let j = 0; j < this.out_dim; j++) {
-      this.b[0][j] -= this.lr * grad_b[0][j];
+      this.b[0][j] -= this.lr * (grad_b[0][j] || 0);
     }
     return grad_x;
   }

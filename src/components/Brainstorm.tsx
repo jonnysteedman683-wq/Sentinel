@@ -293,7 +293,7 @@ export const Brainstorm: React.FC<BrainstormProps> = ({
             <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
               <Shuffle className="w-3 h-3 text-slate-500" /> Combinatorial Suggestions
             </span>
-            <div className="flex flex-col gap-1.5 max-h-[170px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="flex flex-col gap-1.5 max-h-[170px] overflow-y-auto custom-scrollbar pr-1">
               {promptSuggestions.map((suggestion, i) => (
                 <button
                   key={i}

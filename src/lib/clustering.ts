@@ -1,8 +1,7 @@
-export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20): number[] {
+export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20, randomFn = Math.random): number[] {
   if (vectors.length === 0) return [];
   const n = vectors.length;
   const d = vectors[0].length;
-  const actualK = Math.min(k, n);
   
   // Normalize vectors
   const normalized = vectors.map(v => {
@@ -12,15 +11,38 @@ export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20): n
     return v.map(x => x / norm);
   });
 
-  // Initialize centroids (randomly choose k distinct data points)
+  // K-Means++ Initialization
   const centroids: number[][] = [];
-  const indices = new Set<number>();
-  while (indices.size < actualK) {
-    indices.add(Math.floor(Math.random() * n));
+  centroids.push([...normalized[Math.floor(randomFn() * n)]]);
+
+  while (centroids.length < Math.min(k, n)) {
+    const distances = new Float64Array(n);
+    let totalDist = 0;
+    for (let i = 0; i < n; i++) {
+      let minDist = Infinity;
+      for (let j = 0; j < centroids.length; j++) {
+        let dot = 0;
+        for (let l = 0; l < d; l++) dot += normalized[i][l] * centroids[j][l];
+        // Spherical distance roughly proportional to 1 - dot
+        const dist = 1 - dot;
+        if (dist < minDist) minDist = dist;
+      }
+      const squaredDist = minDist * minDist;
+      distances[i] = squaredDist;
+      totalDist += squaredDist;
+    }
+
+    let r = randomFn() * totalDist;
+    let selectedIdx = n - 1;
+    for (let i = 0; i < n; i++) {
+      r -= distances[i];
+      if (r <= 0) {
+        selectedIdx = i;
+        break;
+      }
+    }
+    centroids.push([...normalized[selectedIdx]]);
   }
-  Array.from(indices).forEach(idx => {
-    centroids.push([...normalized[idx]]);
-  });
 
   const assignments = new Int32Array(n);
   
@@ -31,7 +53,7 @@ export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20): n
     for (let i = 0; i < n; i++) {
       let maxDot = -Infinity;
       let bestCluster = 0;
-      for (let j = 0; j < actualK; j++) {
+      for (let j = 0; j < centroids.length; j++) {
         let dot = 0;
         for (let l = 0; l < d; l++) dot += normalized[i][l] * centroids[j][l];
         if (dot > maxDot) {
@@ -48,7 +70,7 @@ export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20): n
     if (!changed) break;
     
     // Update centroids
-    for (let j = 0; j < actualK; j++) {
+    for (let j = 0; j < centroids.length; j++) {
       const newCentroid = new Float64Array(d);
       let count = 0;
       for (let i = 0; i < n; i++) {
@@ -64,7 +86,7 @@ export function sphericalKMeans(vectors: number[][], k: number, maxIter = 20): n
         for (let l = 0; l < d; l++) centroids[j][l] = newCentroid[l] / norm;
       } else {
         // Handle empty cluster
-        const randomIdx = Math.floor(Math.random() * n);
+        const randomIdx = Math.floor(randomFn() * n);
         for (let l = 0; l < d; l++) centroids[j][l] = normalized[randomIdx][l];
       }
     }

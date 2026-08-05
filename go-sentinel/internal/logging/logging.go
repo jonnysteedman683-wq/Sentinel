@@ -1,17 +1,18 @@
 package logging
 
 import (
-		"fmt"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	eventspb "sentinel/proto/sentinel/v1/events"
+	pb "sentinel/proto/sentinel/v1"
 )
 
 // AsyncLogger buffers and writes DecisionEvents
 type AsyncLogger struct {
-	ch     chan *eventspb.DecisionEvent
+	ch     chan *pb.DecisionEvent
 	writer io.Writer
 	done   chan struct{}
 }
@@ -19,7 +20,7 @@ type AsyncLogger struct {
 // NewAsyncLogger starts the logging goroutine
 func NewAsyncLogger(w io.Writer, bufferSize int) *AsyncLogger {
 	l := &AsyncLogger{
-		ch:     make(chan *eventspb.DecisionEvent, bufferSize),
+		ch:     make(chan *pb.DecisionEvent, bufferSize),
 		writer: w,
 		done:   make(chan struct{}),
 	}
@@ -44,7 +45,7 @@ func (l *AsyncLogger) run() {
 }
 
 // Log sends an event to the buffer
-func (l *AsyncLogger) Log(event *eventspb.DecisionEvent) error {
+func (l *AsyncLogger) Log(event *pb.DecisionEvent) error {
 	select {
 	case l.ch <- event:
 		return nil

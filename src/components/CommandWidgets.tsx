@@ -162,7 +162,7 @@ export const LogsWidget: React.FC<LogsWidgetProps> = ({ logs }) => {
         <span className="text-xs font-bold uppercase tracking-wider text-blue-300">Volatile Memory Log Stream</span>
       </div>
       
-      <div className="max-h-60 overflow-y-auto space-y-1.5 text-[10px] p-2 bg-black/60 rounded border border-white/5 custom-scrollbar">
+      <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1.5 text-[10px] p-2 bg-black/60 rounded border border-white/5">
         {logs.length === 0 ? (
           <p className="text-slate-600 text-center py-4">No logged packets found.</p>
         ) : (

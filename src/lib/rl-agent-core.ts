@@ -1,0 +1,576 @@
+import * as tf from '@tensorflow/tfjs';
+import { doc, getDoc, setDoc, collection, addDoc, deleteDoc, db } from '../firebase.js';
+import { SerializedDQN, RLWeightsDoc, ExperienceTuple } from '../types.js';
+import { serializeDQN, deserializeDQN, serializeDense, deserializeDense } from './rl-persistence.js';
+import { Option, IdleExplorerOption, DeepConsolidatorOption, HybridSyncRAGOption } from './options.js';
+import { 
+  zeros, add, Dense, QNetwork, Encoder, 
+  InverseModel, ForwardModel 
+} from './rl-core.js';
+
+import { ActiveInferenceAgent } from './active-inference.js';
+import { PreferenceManager } from './preferences.js';
+import { WorldModel } from './world-model.js';
+import { syncMetaWeights } from './maml.js';
+
+export { zeros, add, Dense, QNetwork, Encoder, InverseModel, ForwardModel };
+
+class ReplayBuffer {
+  buffer: Array<[number[], number, number, number[]]> = [];
+  capacity: number;
+
+  constructor(capacity: number = 2000) {
+    this.capacity = capacity;
+  }
+
+  push(state: number[], action: number, reward: number, next_state: number[]): void {
+    if (this.buffer.length >= this.capacity) {
+      this.buffer.shift();
+    }
+    this.buffer.push([state, action, reward, next_state]);
+  }
+
+  sample(batch_size: number): [number[][], number[], number[], number[][]] {
+    const batch = [];
+    for (let i = 0; i < batch_size; i++) {
+      const idx = Math.floor(Math.random() * this.buffer.length);
+      batch.push(this.buffer[idx]);
+    }
+    
+    const states = batch.map(b => b[0]);
+    const actions = batch.map(b => b[1]);
+    const rewards = batch.map(b => b[2]);
+    const next_states = batch.map(b => b[3]);
+    
+    return [states, actions, rewards, next_states];
+  }
+
+  get length(): number {
+    return this.buffer.length;
+  }
+}
+
+export type NudgeCallback = () => Promise<void>;
+export type ConsolidateCallback = () => Promise<void>;
+export type InsightCallback = () => Promise<void>;
+export type HybridSyncRAGCallback = () => Promise<void>;
+
+export enum AgentAction {
+  IDLE = 0,
+  CHANGE_DEPTH = 1,
+  CONSOLIDATE = 2,
+  NUDGE = 3,
+  CONSOLIDATE_CHATS = 4,
+  INSIGHT = 5,
+  HYBRID_SYNC_RAG = 6,
+}
+
+export interface RLDecision {
+  type: 'action' | 'option' | 'terminate';
+  index?: number;
+  optionId?: string;
+  efe?: number;
+  confidence?: number;
+}
+
+export class CuriousAgentCore {
+  state_dim: number;
+  n_actions: number;
+  gamma: number;
+  epsilon: number;
+  lr: number;
+  q_online: QNetwork;
+  q_target: QNetwork;
+  buffer: ReplayBuffer;
+  encoder: Encoder;
+  inverse_model: InverseModel;
+  forward_model: ForwardModel;
+  
+  options: Option[] & { get?: (id: string) => Option | undefined } = [];
+  activeOption: Option | null = null;
+  optionDuration: number = 0;
+  optionInitState: number[] | null = null;
+
+  nudgeCallback?: NudgeCallback;
+  consolidateCallback?: ConsolidateCallback;
+  insightCallback?: InsightCallback;
+  hybridSyncRAGCallback?: HybridSyncRAGCallback;
+  
+  currentState: number[] = [];
+  lastState: number[] = [];
+  lastAction: number = 0;
+  experienceBuffer: ExperienceTuple[] = [];
+
+  // Delayed Gradient Pipeline trajectories
+  userId: string;
+  pendingTrajectories: Record<string, {
+    id: string;
+    state: number[];
+    action: number;
+    nextState: number[];
+    timestamp: number;
+    type: string;
+  }> = {};
+
+  // Active Inference components
+  worldModel: WorldModel;
+  prefManager: PreferenceManager;
+  aiPlanner: ActiveInferenceAgent;
+  useActiveInference: boolean = false;
+
+  constructor(
+    state_dim: number, 
+    n_actions: number, 
+    userId: string,
+    lr: number = 0.001, 
+    gamma: number = 0.99,
+    epsilon: number = 1.0
+  ) {
+    this.state_dim = state_dim;
+    this.n_actions = n_actions;
+    this.gamma = gamma;
+    this.epsilon = epsilon;
+    this.lr = lr;
+    this.userId = userId;
+    
+    this.q_online = new QNetwork(state_dim, n_actions, this.lr);
+    this.q_target = new QNetwork(state_dim, n_actions, this.lr);
+    this.buffer = new ReplayBuffer();
+    
+    const enc_dim = 32;
+    this.encoder = new Encoder(state_dim, enc_dim, this.lr);
+    this.inverse_model = new InverseModel(enc_dim, n_actions, this.lr);
+    this.forward_model = new ForwardModel(enc_dim, n_actions, this.lr);
+    
+    const opts = [
+      new IdleExplorerOption(state_dim, lr),
+      new DeepConsolidatorOption(state_dim, lr),
+      new HybridSyncRAGOption(state_dim, lr)
+    ];
+    this.options = Object.assign(opts, {
+      get: (id: string) => opts.find(o => o.id === id)
+    });
+
+    this.worldModel = new WorldModel(state_dim, n_actions);
+    this.prefManager = new PreferenceManager(userId);
+    this.aiPlanner = new ActiveInferenceAgent(
+      this.worldModel,
+      this.prefManager,
+      this.options as Option[],
+      state_dim,
+      n_actions,
+      userId
+    );
+
+    this.currentState = new Array(state_dim).fill(0);
+  }
+
+
+  setNudgeCallback(cb: NudgeCallback) { this.nudgeCallback = cb; }
+  setConsolidateCallback(cb: ConsolidateCallback) { this.consolidateCallback = cb; }
+  setInsightCallback(cb: InsightCallback) { this.insightCallback = cb; }
+  setHybridSyncRAGCallback(cb: HybridSyncRAGCallback) { this.hybridSyncRAGCallback = cb; }
+
+  getState(): number[] {
+    return [...this.currentState];
+  }
+
+  getQValues(state: number[]): number[] {
+    return this.q_online.forward([state])[0];
+  }
+
+  setDimension(index: number, value: number) {
+    if (index >= 0 && index < this.state_dim) {
+      this.currentState[index] = value;
+    }
+  }
+
+  remember(s: number[], a: number | RLDecision, r: number, ns: number[]) {
+    const actionIndex = typeof a === 'number' ? a : (a.index ?? (a.type === 'option' ? 99 : 0));
+    this.buffer.push(s, actionIndex, r, ns);
+    this.experienceBuffer.push({ state: s, action: actionIndex, reward: r, nextState: ns, done: false });
+  }
+
+  async flushExperiences(userId: string) {
+    if (this.experienceBuffer.length === 0) return;
+    try {
+      const batchRef = collection(db, 'users', userId, 'rlAgent_replay');
+      await addDoc(batchRef, {
+        timestamp: Date.now(),
+        experiences: [...this.experienceBuffer]
+      });
+      this.experienceBuffer = [];
+    } catch (e) {
+      console.error('Failed to flush experiences:', e);
+    }
+  }
+
+  private mapReward(reward: string | number): number {
+    if (typeof reward === 'string') {
+      if (reward === 'accept') return 1.0;
+      if (reward === 'ignore') return -0.1;
+      if (reward === 'reject') return -0.5;
+      return 0;
+    }
+    return reward;
+  }
+
+  async applyNudgeReward(reward: string | number) {
+    const r = this.mapReward(reward);
+    this.remember(this.lastState, AgentAction.NUDGE, r, this.currentState);
+    await this.train();
+  }
+
+  async applyConsolidationReward(reward: string | number) {
+    const r = this.mapReward(reward);
+    this.remember(this.lastState, AgentAction.CONSOLIDATE, r, this.currentState);
+    await this.train();
+  }
+
+  async applyInsightReward(reward: string | number) {
+    const r = this.mapReward(reward);
+    this.remember(this.lastState, AgentAction.INSIGHT, r, this.currentState);
+    await this.train();
+  }
+
+  async applyDelayedInsightReward(reward: string | number, insightId?: string) {
+    if (insightId) {
+      await this.applyDelayedReward(insightId, reward);
+    } else {
+      await this.applyInsightReward(reward);
+    }
+  }
+
+  registerDelayedTrajectory(id: string, state: number[], action: number, nextState: number[], type: string) {
+    const trajectory = {
+      id,
+      state: [...state],
+      action,
+      nextState: [...nextState],
+      timestamp: Date.now(),
+      type
+    };
+    this.pendingTrajectories[id] = trajectory;
+    this.savePendingTrajectories().catch(err => console.error('[Delayed Gradient Pipeline] save error:', err));
+  }
+
+  async applyDelayedReward(id: string, reward: string | number) {
+    const r = this.mapReward(reward);
+    
+    // Attempt local lookups
+    let trajectory = this.pendingTrajectories[id];
+    
+    // If not found locally, query Firestore pending list directly (e.g. for server-generated insights!)
+    if (!trajectory) {
+      try {
+        const snap = await getDoc(doc(db, 'users', this.userId, 'rlAgent_pending', id));
+        if (snap.exists()) {
+          trajectory = snap.data() as any;
+          console.log(`[Delayed Gradient Pipeline] Fetched server-side trajectory for ${id}:`, trajectory);
+        }
+      } catch (err) {
+        console.error(`[Delayed Gradient Pipeline] Error fetching from firestore for ${id}:`, err);
+      }
+    }
+
+    if (trajectory) {
+      // Direct optimization step: place in replay buffer and trigger training
+      this.remember(trajectory.state, trajectory.action, r, trajectory.nextState);
+      await this.train();
+      
+      // Cleanup
+      delete this.pendingTrajectories[id];
+      await this.savePendingTrajectories();
+      
+      try {
+        await deleteDoc(doc(db, 'users', this.userId, 'rlAgent_pending', id));
+      } catch (e) {
+        // Ignored or local fallback
+      }
+      
+      console.log(`[Delayed Gradient Pipeline] Credit assigned to action ${trajectory.action} (${AgentAction[trajectory.action]}) for item ${id}. Reward: ${r}`);
+    } else {
+      console.warn(`[Delayed Gradient Pipeline] No pending trajectory found for item ${id}. Standard fallback applied.`);
+      // Standard fallback (e.g., if tracking was missing)
+      if (id.startsWith('insight')) {
+        await this.applyInsightReward(reward);
+      } else if (id.startsWith('nudge')) {
+        await this.applyNudgeReward(reward);
+      } else {
+        await this.applyConsolidationReward(reward);
+      }
+    }
+  }
+
+  async savePendingTrajectories() {
+    try {
+      if (!this.userId) return;
+      const batchRef = doc(db, 'users', this.userId, 'rlAgent', 'pendingTrajectories');
+      await setDoc(batchRef, {
+        updatedAt: Date.now(),
+        trajectories: this.pendingTrajectories
+      });
+    } catch (err) {
+      console.error('[Delayed Gradient Pipeline] savePendingTrajectories error:', err);
+    }
+  }
+
+  async loadPendingTrajectories() {
+    try {
+      if (!this.userId) return;
+      const snap = await getDoc(doc(db, 'users', this.userId, 'rlAgent', 'pendingTrajectories'));
+      if (snap.exists()) {
+        const data = snap.data();
+        this.pendingTrajectories = data?.trajectories || {};
+        console.log(`[Delayed Gradient Pipeline] Loaded ${Object.keys(this.pendingTrajectories).length} pending trajectories.`);
+      }
+    } catch (err) {
+      console.error('[Delayed Gradient Pipeline] loadPendingTrajectories error:', err);
+    }
+  }
+
+  async applyHybridSyncRAGReward(reward: string | number) {
+    const r = this.mapReward(reward);
+    this.remember(this.lastState, AgentAction.HYBRID_SYNC_RAG, r, this.currentState);
+    await this.train();
+  }
+
+  async selectActionHRL(state: number[]): Promise<RLDecision> {
+    this.lastState = [...state];
+    
+    // If an option is active, check for termination
+    if (this.activeOption) {
+      if (this.optionDuration >= this.activeOption.maxDuration || Math.random() < this.activeOption.terminationProbability(state)) {
+        this.activeOption = null;
+        return { type: 'terminate' };
+      }
+      this.optionDuration++;
+      
+      const localActionIndex = this.activeOption.get_action(state);
+      const actionName = this.activeOption.actionSpace[localActionIndex];
+      const globalActionIndex = AgentAction[actionName as keyof typeof AgentAction];
+      return { type: 'action', index: globalActionIndex };
+    }
+
+    if (this.useActiveInference) {
+      return await this.aiPlanner.selectAction(state);
+    }
+
+    const action = this.get_action(state);
+    
+    if (action < this.options.length) {
+      return { type: 'option', optionId: this.options[action].id };
+    } else {
+      return { type: 'action', index: action };
+    }
+  }
+
+  async act(state: number[]): Promise<RLDecision> {
+    return await this.selectActionHRL(state);
+  }
+
+
+  get_action(state: number[]): number {
+    if (Math.random() < this.epsilon) {
+      return Math.floor(Math.random() * this.n_actions);
+    }
+    const q_values = this.q_online.forward([state]);
+    return q_values[0].indexOf(Math.max(...q_values[0]));
+  }
+
+  async train(): Promise<void> {
+    if (this.buffer.length < 64) return;
+    
+    const [states, actions, rewards, next_states] = this.buffer.sample(32);
+    
+    const enc_s = this.encoder.forward(states);
+    const enc_s_next = this.encoder.forward(next_states);
+    
+    const pred_actions = this.inverse_model.forward(enc_s, enc_s_next);
+    const grad_inv = zeros(32, this.n_actions);
+    for (let i = 0; i < 32; i++) {
+      grad_inv[i][actions[i]] = (pred_actions[i][actions[i]] - 1.0) / 32;
+    }
+    const { grad_enc_s: g1, grad_enc_s_next: g2 } = this.inverse_model.backward(grad_inv);
+    
+    const a_onehot = zeros(32, this.n_actions);
+    for (let i = 0; i < 32; i++) a_onehot[i][actions[i]] = 1.0;
+    const pred_enc_next = this.forward_model.forward(enc_s, a_onehot);
+    
+    const grad_fwd = zeros(32, 32);
+    const intrinsic_rewards = [];
+    for (let i = 0; i < 32; i++) {
+      let err = 0;
+      for (let j = 0; j < 32; j++) {
+        const diff = pred_enc_next[i][j] - enc_s_next[i][j];
+        grad_fwd[i][j] = diff / 32;
+        err += diff * diff;
+      }
+      intrinsic_rewards.push(err * 0.1);
+    }
+    this.forward_model.backward(grad_fwd);
+    
+    const grad_enc = add(g1, g2); 
+    this.encoder.backward(grad_enc);
+
+    const q_next = this.q_target.forward(next_states);
+    const target_q = [];
+    for (let i = 0; i < 32; i++) {
+      const max_q_next = Math.max(...q_next[i]);
+      const total_reward = rewards[i] + intrinsic_rewards[i];
+      target_q.push(total_reward + this.gamma * max_q_next);
+    }
+    
+    this.q_online.train_step(states, actions, target_q);
+    
+    this.epsilon = Math.max(0.1, this.epsilon * 0.995);
+  }
+
+  update_target(): void {
+    this.q_target.fc1.W = this.q_online.fc1.W.map(r => [...r]);
+    this.q_target.fc1.b = this.q_online.fc1.b.map(r => [...r]);
+    this.q_target.fc2.W = this.q_online.fc2.W.map(r => [...r]);
+    this.q_target.fc2.b = this.q_online.fc2.b.map(r => [...r]);
+    this.q_target.out.W = this.q_online.out.W.map(r => [...r]);
+    this.q_target.out.b = this.q_online.out.b.map(r => [...r]);
+  }
+
+  async saveWeights(userId: string) {
+    try {
+      const optionWeights: Record<string, SerializedDQN> = {};
+      for (const opt of this.options) {
+        if (opt.policy) {
+          optionWeights[opt.name] = serializeDQN(opt.policy);
+        }
+      }
+
+      const docData: RLWeightsDoc = {
+        updatedAt: Date.now(),
+        topLevel: serializeDQN(this.q_online),
+        options: optionWeights,
+        icm: {
+          featureNet: {
+            layers: [serializeDense(this.encoder.dense)],
+            inputSize: this.encoder.dense.in_dim,
+            outputSize: this.encoder.dense.out_dim
+          },
+          forwardNet: {
+            layers: [serializeDense(this.forward_model.fc1), serializeDense(this.forward_model.fc2)],
+            inputSize: this.forward_model.fc1.in_dim,
+            outputSize: this.forward_model.fc2.out_dim
+          },
+          inverseNet: {
+            layers: [serializeDense(this.inverse_model.fc1), serializeDense(this.inverse_model.fc2)],
+            inputSize: this.inverse_model.fc1.in_dim,
+            outputSize: this.inverse_model.fc2.out_dim
+          },
+        },
+        hyperparams: {
+          epsilon: this.epsilon,
+          learningRate: this.lr,
+          discountFactor: this.gamma
+        }
+      };
+      
+      await setDoc(doc(db, 'users', userId, 'rlAgent', 'weights'), docData);
+      await this.aiPlanner.savePolicyWeights();
+      await this.savePendingTrajectories();
+      
+      // Async trigger MAML parameter synchronization
+      if (Math.random() < 0.1) { // 10% chance to contribute to meta-model
+        syncMetaWeights(userId, docData).catch((err: any) => console.error('MAML sync error:', err));
+      }
+    } catch (e) {
+      console.error('Failed to save RL weights:', e);
+    }
+  }
+
+  async loadWeights(userId: string) {
+    try {
+      const snap = await getDoc(doc(db, 'users', userId, 'rlAgent', 'weights'));
+      if (snap.exists()) {
+        const data = snap.data() as RLWeightsDoc;
+        this.q_online = deserializeDQN(data.topLevel, data.hyperparams.learningRate);
+        this.update_target();
+        this.epsilon = data.hyperparams.epsilon;
+        this.lr = data.hyperparams.learningRate;
+        this.gamma = data.hyperparams.discountFactor;
+
+        for (const opt of this.options) {
+          const optData = data.options[opt.name];
+          if (optData) {
+            opt.policy = deserializeDQN(optData);
+          }
+        }
+
+        if (data.icm) {
+          if (data.icm.featureNet?.layers?.[0]) {
+            deserializeDense(this.encoder.dense, data.icm.featureNet.layers[0]);
+          }
+          if (data.icm.forwardNet?.layers?.[0]) {
+            deserializeDense(this.forward_model.fc1, data.icm.forwardNet.layers[0]);
+          }
+          if (data.icm.forwardNet?.layers?.[1]) {
+            deserializeDense(this.forward_model.fc2, data.icm.forwardNet.layers[1]);
+          }
+          if (data.icm.inverseNet?.layers?.[0]) {
+            deserializeDense(this.inverse_model.fc1, data.icm.inverseNet.layers[0]);
+          }
+          if (data.icm.inverseNet?.layers?.[1]) {
+            deserializeDense(this.inverse_model.fc2, data.icm.inverseNet.layers[1]);
+          }
+        }
+        await this.aiPlanner.loadPolicyWeights();
+        await this.loadPendingTrajectories();
+      }
+    } catch (e) {
+      console.error('Failed to load RL weights:', e);
+    }
+  }
+}
+
+export class DQNCuriousAgent {
+  private model: tf.Sequential;
+
+  constructor() {
+    this.model = tf.sequential({
+      layers: [
+        tf.layers.dense({ inputShape: [10], units: 24, activation: 'relu' }),
+        tf.layers.dense({ units: 5, activation: 'linear' }) 
+      ]
+    });
+  }
+
+  /**
+   * Selects an action safely without leaking tensors.
+   */
+  public predictAction(stateVector: number[]): number {
+    // tf.tidy automatically cleans up all intermediate tensors created inside
+    return tf.tidy(() => {
+      const stateTensor = tf.tensor2d(stateVector, [1, stateVector.length]);
+      const qValues = this.model.predict(stateTensor) as tf.Tensor;
+      
+      // Extract the highest value action index
+      const actionTensor = qValues.argMax(1);
+      return actionTensor.dataSync()[0]; 
+    });
+  }
+
+  /**
+   * Asynchronous loops cannot use tf.tidy(). Tensors must be tracked and 
+   * manually disposed of after the operation completes.
+   */
+  public async train(batch: tf.Tensor[], targets: tf.Tensor): Promise<void> {
+    const inputTensor = tf.concat(batch);
+    
+    await this.model.fit(inputTensor, targets, { epochs: 1 });
+    
+    // Explicit C++ memory cleanup
+    inputTensor.dispose();
+    targets.dispose();
+    // Also dispose elements in batch array
+    batch.forEach(t => t.dispose());
+  }
+}
+
+

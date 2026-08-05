@@ -17,7 +17,7 @@ export const NeuralIntentPanel: React.FC<NeuralIntentPanelProps> = ({ prediction
         <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" /> Neural Intent Engine (ML-Inference)
       </h3>
       <p className="text-[11px] text-slate-400 mb-4 leading-relaxed font-sans">
-        A k-Nearest Neighbors classifier trains on the server from your interaction telemetry, predicting your next likely action based on time of day, active tab, conversation activity, and screen scale.
+        A k-Nearest Neighbors classifier trains locally in a Web Worker (WebGPU accelerated) from your interaction telemetry, predicting your next likely action based on time of day, active tab, conversation activity, and screen scale.
       </p>
       
       {predictions && predictions.length > 0 ? (

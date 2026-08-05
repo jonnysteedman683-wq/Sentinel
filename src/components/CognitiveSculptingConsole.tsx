@@ -85,7 +85,7 @@ export const CognitiveSculptingConsole: React.FC<{ theme: string }> = ({ theme }
         </button>
       </div>
 
-      <div className="flex-1 bg-black/50 rounded-lg p-3 overflow-y-auto border border-white/5">
+      <div className="flex-1 bg-black/50 rounded-lg p-3 overflow-y-auto custom-scrollbar border border-white/5">
         <h4 className="text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-widest border-b border-white/10 pb-1">Event Log</h4>
         <div className="space-y-1 font-mono text-[10px]">
           {logs.map((log, i) => (

@@ -32,7 +32,7 @@ export async function publishEvent(
     causationId,
     correlationId: correlationId || trace.getActiveSpan()?.spanContext().traceId,
   };
-  await db.collection(`users/${userId}/systemHealth/eventLog`).add({
+  await db.collection(`users/${userId}/eventLog`).add({
     ...event,
     timestamp: Timestamp.fromDate(event.timestamp),
   });

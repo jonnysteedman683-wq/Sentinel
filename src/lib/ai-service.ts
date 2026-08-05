@@ -81,14 +81,14 @@ export class FallbackGenAI {
     generateContent: async (params: any) => {
       const startTime = Date.now();
       const modelType = params.modelType || 'fast';
-      const fastModel = "gemini-3.5-flash";
-      const smartModel = "gemini-3.1-pro-preview";
+      const fastModel = "gemini-1.5-flash";
+      const smartModel = "gemini-1.5-pro";
       const model = params.model || (modelType === 'smart' ? smartModel : fastModel);
       const traceId = params.traceId || null;
       
       console.log(`[FallbackGenAI][${traceId || 'no-trace'}] Requesting model: ${model}`);
       
-      const hasValidGeminiKey = process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.");
+      const hasValidGeminiKey = !!process.env.GEMINI_API_KEY;
       if (hasValidGeminiKey) {
         let attempts = 0;
         const maxAttempts = 2;
@@ -123,6 +123,31 @@ export class FallbackGenAI {
               span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
               span.recordException(err);
               span.end();
+              
+              const errorMsg = String(err.message || "");
+              const isAuthError = errorMsg.includes("API_KEY_INVALID") || 
+                                 errorMsg.includes("API key not found") || 
+                                 errorMsg.includes("401") || 
+                                 errorMsg.includes("UNAUTHENTICATED") ||
+                                 errorMsg.includes("invalid authentication credentials");
+
+              if (isAuthError) {
+                const criticalMsg = "CRITICAL: GEMINI_API_KEY is invalid, missing, or unauthenticated. Please provide a valid key in the Settings menu (Gears icon). Error: 401 Unauthenticated.";
+                let text = criticalMsg;
+                if (params.config?.responseMimeType === "application/json") {
+                  text = JSON.stringify({
+                    error: criticalMsg,
+                    status: "UNAUTHENTICATED",
+                    code: 401,
+                    text: criticalMsg,
+                    candidates: [] // Mock for safety
+                  });
+                }
+                return {
+                  text: text,
+                  candidates: [{ content: { parts: [{ text: text }] } }]
+                };
+              }
               throw err;
             }
           } catch (e: any) {
@@ -319,7 +344,7 @@ export class FallbackGenAI {
     },
 
     embedContent: async (params: any) => {
-      const hasValidGeminiKey = process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.");
+      const hasValidGeminiKey = !!process.env.GEMINI_API_KEY;
       if (hasValidGeminiKey) {
         try {
           const googleAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });

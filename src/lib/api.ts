@@ -10,10 +10,14 @@ const API_BASE = '/api';
  */
 async function getAuthHeaders(): Promise<HeadersInit> {
   const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   };
+  if (auth.currentUser?.uid) {
+    headers['X-User-Id'] = auth.currentUser.uid;
+  }
+  return headers;
 }
 
 /**

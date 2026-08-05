@@ -13,7 +13,7 @@ ${recentThoughts.join('\n')}
 
 Generate a single, profound, non-obvious insight connecting these themes. Keep it to one sentence.`;
     
-    const insightResponse = await callGeminiGenerate(prompt, 'gemini-3.5-flash');
+    const insightResponse = await callGeminiGenerate(prompt, 'gemini-1.5-flash');
     const insightText = (insightResponse as any)?.candidates?.[0]?.content?.parts?.[0]?.text || "A sudden shift in thought reveals a hidden connection between previously distinct ideas.";
     
     // Store as an ephemeral memory with high initial strength

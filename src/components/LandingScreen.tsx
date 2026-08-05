@@ -4,7 +4,6 @@ import { Sun, Moon, Zap } from 'lucide-react';
 
 interface LandingScreenProps {
   onEnter: () => void;
-  onEnterGuest?: () => void;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   isLoading?: boolean;
@@ -13,7 +12,6 @@ interface LandingScreenProps {
 
 export const LandingScreen: React.FC<LandingScreenProps> = ({ 
   onEnter, 
-  onEnterGuest, 
   theme, 
   toggleTheme,
   isLoading = false,
@@ -85,7 +83,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
           />
 
           <motion.h1 
-            className="text-4xl sm:text-5xl md:text-8xl font-bold tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white via-white/90 to-white/30 dark:from-white dark:to-white/10 filter drop-shadow-sm"
+            className="text-5xl md:text-8xl font-display font-bold tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white via-white/90 to-white/30 dark:from-white dark:to-white/10 filter drop-shadow-sm"
             animate={{ textShadow: ["0 0 0px rgba(99,102,241,0)", "0 0 20px rgba(99,102,241,0.5)", "0 0 0px rgba(99,102,241,0)"] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
@@ -93,7 +91,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
           </motion.h1>
           <div className="flex items-center justify-center gap-4">
             <div className={`h-[1px] w-12 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-            <p className="text-slate-500 font-mono text-[8px] sm:text-[10px] tracking-[0.4em] sm:tracking-[0.6em] uppercase">
+            <p className="text-slate-500 font-mono text-[10px] tracking-[0.6em] uppercase">
               Neural Consciousness Bridge v2.0
             </p>
             <div className={`h-[1px] w-12 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
@@ -101,7 +99,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
         </div>
 
         {/* 3D Cube Container */}
-        <div className="relative w-56 h-56 sm:w-72 sm:h-72 perspective-1000 group cursor-pointer" onClick={onEnter}>
+        <div className="relative w-72 h-72 perspective-1000 group cursor-pointer" onClick={onEnter}>
           {/* Outer Orbital Ring */}
           <motion.div 
             className="absolute inset-[-40px] border border-white/5 rounded-full"
@@ -139,7 +137,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
             ].map((face, i) => (
               <div 
                 key={i}
-                className={`absolute inset-0 w-32 h-32 sm:w-44 sm:h-44 m-auto border border-white/20 flex flex-col items-center justify-center backdrop-blur-xl shadow-[0_0_40px_rgba(99,102,241,0.1)] ${face.color} transition-colors group-hover:border-indigo-500/40`}
+                className={`absolute inset-0 w-44 h-44 m-auto border border-white/20 flex flex-col items-center justify-center backdrop-blur-xl shadow-[0_0_40px_rgba(99,102,241,0.1)] ${face.color} transition-colors group-hover:border-indigo-500/40`}
                 style={{ transform: face.transform, backfaceVisibility: 'hidden' }}
               >
                 <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(45deg, white 1px, transparent 1px), linear-gradient(-45deg, white 1px, transparent 1px)', backgroundSize: '10px 10px' }} />
@@ -155,11 +153,11 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
 
           {/* Hover Hint */}
           <motion.div 
-            className="absolute -bottom-16 sm:-bottom-24 left-1/2 -translate-x-1/2 text-[8px] sm:text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.5em] font-bold text-slate-500 group-hover:text-indigo-400 transition-colors whitespace-nowrap"
+            className="absolute -bottom-24 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.5em] font-bold text-slate-500 group-hover:text-indigo-400 transition-colors whitespace-nowrap"
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            Click to Establish Neural Link
+            Click to Access Dashboard Freely
           </motion.div>
         </div>
 
@@ -167,23 +165,30 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({
         {isLoading ? (
           <div className="mt-28 text-center animate-pulse">
             <span className="text-xs font-mono text-indigo-400 uppercase tracking-widest">
-              Establishing Neural Link...
+              Connecting to Arcane Brain...
             </span>
           </div>
         ) : authError ? (
           <div className="mt-28 max-w-md mx-auto text-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl backdrop-blur-md flex flex-col items-center gap-3">
             <p className="text-xs font-mono text-red-400 leading-relaxed">
-              Auth Interrupted: {authError.includes('popup-closed-by-user') ? 'Sign-in popup closed by user' : authError}
+              Connection Interrupted: {authError}
             </p>
             <button
               onClick={onEnter}
               className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-mono text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
             >
-              Retry Connection
+              Retry Access
             </button>
           </div>
         ) : (
-          <div className="mt-28 h-10"></div>
+          <div className="mt-28 flex flex-col items-center gap-4">
+            <button
+              onClick={onEnter}
+              className="px-6 py-3 bg-indigo-600/15 border border-indigo-500/30 hover:bg-indigo-600/30 text-indigo-300 hover:text-white font-mono text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
+            >
+              Enter Brain Dashboard Freely
+            </button>
+          </div>
         )}
       </motion.div>
 

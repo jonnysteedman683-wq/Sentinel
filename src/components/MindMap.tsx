@@ -1,15 +1,14 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
 import ForceGraph2D from 'react-force-graph-2d';
-import ForceGraph3D from 'react-force-graph-3d';
-import * as THREE from 'three';
 import { Network, Search, Zap, SlidersHorizontal, Compass, Layers, Eye } from 'lucide-react';
-import KnowledgeGraphPanel from './KnowledgeGraphPanel.js';
+import KnowledgeGraphPanel, { Spark } from './KnowledgeGraphPanel.js';
 
 interface MindMapProps {
   memories: any[];
   theme?: 'dark' | 'light';
-  onCollapseWavefunction?: (id: string) => void;
+  sparks?: Spark[];
+  onBindSpark?: (spark: Spark) => void;
 }
 
 const COLORS = [
@@ -32,14 +31,13 @@ interface ERDEntity {
   relations: string[];
 }
 
-export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCollapseWavefunction }) => {
+export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', sparks, onBindSpark }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const fgRef = useRef<any>(null);
 
   // States
   const [mode, setMode] = useState<VizMode>('synaptic');
-  const [viewDimension, setViewDimension] = useState<'2D' | '3D'>('2D');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
@@ -120,37 +118,29 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
       }
     });
 
-    // Populate arrays
-    tagMap.forEach(tagNode => listNodes.push(tagNode));
-
+    // Create individual memory nodes
     memories.forEach(mem => {
-      const isSuperposition = !!mem.superpositionSummaries;
-      const memNode = {
-        id: `mem_${mem.id}`,
-        group: 2,
-        label: mem.text.substring(0, 30) + '...',
-        fullText: mem.text,
-        r: isSuperposition ? 12 : 7,
-        color: isSuperposition ? '#d946ef' : '#14b8a6', // pink for superposition, teal for normal
-        strength: mem.strength,
-        superpositionSummaries: mem.superpositionSummaries,
-        entangledId: mem.entangledId
+      const primaryTag = mem.tags && mem.tags.length > 0 ? mem.tags[0] : null;
+      const color = primaryTag ? tagColors.get(primaryTag) : (theme === 'dark' ? '#94a3b8' : '#475569');
+
+      const textSnippet = mem.text.length > 25 ? mem.text.substring(0, 22) + '...' : mem.text;
+      const memNode = { 
+        id: `mem_${mem.id}`, 
+        group: 2, 
+        label: textSnippet, 
+        fullText: mem.text, 
+        r: 6, 
+        color,
+        strength: mem.strength || 100
       };
       listNodes.push(memNode);
 
-      // Link to root as backup or fallback
-      listLinks.push({ source: 'root', target: memNode.id, value: 0.5 });
-
-      // Link to tags
-      if (mem.tags) {
+      if (mem.tags && mem.tags.length > 0) {
         mem.tags.forEach((tag: string) => {
-          listLinks.push({ source: `tag_${tag}`, target: memNode.id, value: 2.0 });
+          listLinks.push({ source: `tag_${tag}`, target: memNode.id, value: 1.5, speed: 0.005 });
         });
-      }
-
-      // Link entangled pairs
-      if (mem.entangledId) {
-        listLinks.push({ source: `mem_${mem.id}`, target: `mem_${mem.entangledId}`, value: 3.0, isEntangled: true });
+      } else {
+        listLinks.push({ source: 'root', target: memNode.id, value: 1.5, speed: 0.005 });
       }
     });
 
@@ -193,18 +183,11 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
   // Handle zooming / focusing on camera click
   const handleNodeClick = useCallback((node: any) => {
     setSelectedNode(node);
-    
-    // Wavefunction collapse hook
-    const rawId = node.id.replace('mem_', '');
-    if (node.superpositionSummaries && onCollapseWavefunction) {
-      onCollapseWavefunction(rawId);
-    }
-
     if (fgRef.current && node.x !== undefined && node.y !== undefined) {
       fgRef.current.centerAt(node.x, node.y, 750);
       fgRef.current.zoom(3, 750);
     }
-  }, [onCollapseWavefunction]);
+  }, []);
 
   const extractErd = async (memoryNode: any) => {
     const rawId = memoryNode.id.replace('mem_', '');
@@ -449,35 +432,6 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
           </button>
         </div>
 
-        {/* 2D / 3D Space toggle */}
-        <div className="flex items-center justify-between bg-slate-900/40 px-3 py-1.5 rounded-xl border border-white/5">
-          <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-            <Compass size={10} className="text-teal-400" /> Space
-          </span>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setViewDimension('2D')}
-              className={`text-[9px] px-2 py-0.5 rounded border font-mono font-bold transition-colors ${
-                viewDimension === '2D' 
-                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' 
-                  : 'bg-slate-800 border-white/5 text-slate-500'
-              }`}
-            >
-              2D
-            </button>
-            <button
-              onClick={() => setViewDimension('3D')}
-              className={`text-[9px] px-2 py-0.5 rounded border font-mono font-bold transition-colors ${
-                viewDimension === '3D' 
-                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
-                  : 'bg-slate-800 border-white/5 text-slate-500'
-              }`}
-            >
-              3D
-            </button>
-          </div>
-        </div>
-
         {/* Advanced Settings Drawer Trigger */}
         <div className="flex items-center gap-2">
           <SlidersHorizontal size={12} className="text-pink-400" />
@@ -502,7 +456,7 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
         {/* Render PCA Projection View */}
         {mode === 'pca' && (
           <div className="w-full h-full p-4 overflow-auto">
-            <KnowledgeGraphPanel memories={memories} />
+            <KnowledgeGraphPanel memories={memories} sparks={sparks} onBindSpark={onBindSpark} />
           </div>
         )}
 
@@ -516,77 +470,43 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
           />
         )}
 
-        {/* Render Interactive Canvas Force Graph (React Force Graph 2D or 3D) */}
+        {/* Render Interactive Canvas Force Graph (React Force Graph 2D) */}
         {mode === 'synaptic' && (
           <div className="w-full h-full">
-            {viewDimension === '2D' ? (
-              <ForceGraph2D
-                ref={fgRef}
-                graphData={{ nodes: mapNodes, links: mapLinks }}
-                width={dimensions.width}
-                height={dimensions.height}
-                backgroundColor="transparent"
-                nodeRelSize={1}
-                nodeVal={(node: any) => node.r}
-                nodeColor={(node: any) => {
-                  const isHighlighted = highlightNodes.size > 0 && highlightNodes.has(node.id);
-                  if (isHighlighted) return '#f43f5e'; // Highlighted nodes are hot coral red
-                  if (hoveredNode === node.id) return '#ffffff';
-                  return node.color || '#2dd4bf';
-                }}
-                nodeLabel={(node: any) => node.label}
-                onNodeClick={handleNodeClick}
-                onNodeHover={(node: any) => setHoveredNode(node ? node.id : null)}
-                linkWidth={(link: any) => {
-                  return hoveredNode === link.source.id || hoveredNode === link.target.id ? 2.5 : link.value;
-                }}
-                linkColor={(link: any) => {
-                  const isSourceHovered = hoveredNode === link.source.id;
-                  const isTargetHovered = hoveredNode === link.target.id;
-                  if (isSourceHovered || isTargetHovered) return '#f472b6'; // hot pink connection
-                  if (link.isEntangled) return '#d946ef'; // Entangled pair pink-purple line
-                  return theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
-                }}
-                linkDirectionalParticles={linkParticles}
-                linkDirectionalParticleSpeed={linkParticleSpeed}
-                linkDirectionalParticleWidth={1.8}
-                linkDirectionalParticleColor={() => '#fbbf24'} // Amber action potential flows
-                cooldownTicks={120}
-                d3AlphaDecay={0.08}
-                d3VelocityDecay={0.35}
-              />
-            ) : (
-              <ForceGraph3D
-                ref={fgRef}
-                graphData={{ nodes: mapNodes, links: mapLinks }}
-                width={dimensions.width}
-                height={dimensions.height}
-                backgroundColor="transparent"
-                nodeLabel={(node: any) => node.label}
-                onNodeClick={handleNodeClick}
-                nodeThreeObject={(node: any) => {
-                  const isSuperposition = !!node.superpositionSummaries;
-                  const size = node.r || 4;
-                  const geometry = new THREE.SphereGeometry(size, 16, 16);
-                  const material = new THREE.MeshBasicMaterial({
-                    color: node.color || '#2dd4bf',
-                    transparent: isSuperposition,
-                    opacity: isSuperposition ? 0.6 : 1.0,
-                    wireframe: isSuperposition
-                  });
-                  return new THREE.Mesh(geometry, material);
-                }}
-                linkWidth={(link: any) => link.value || 1}
-                linkColor={(link: any) => {
-                  if (link.isEntangled) return '#d946ef';
-                  return theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)';
-                }}
-                linkDirectionalParticles={linkParticles}
-                linkDirectionalParticleSpeed={linkParticleSpeed}
-                linkDirectionalParticleWidth={1.5}
-                linkDirectionalParticleColor={() => '#fbbf24'}
-              />
-            )}
+            <ForceGraph2D
+              ref={fgRef}
+              graphData={{ nodes: mapNodes, links: mapLinks }}
+              width={dimensions.width}
+              height={dimensions.height}
+              backgroundColor="transparent"
+              nodeRelSize={1}
+              nodeVal={(node: any) => node.r}
+              nodeColor={(node: any) => {
+                const isHighlighted = highlightNodes.size > 0 && highlightNodes.has(node.id);
+                if (isHighlighted) return '#f43f5e'; // Highlighted nodes are hot coral red
+                if (hoveredNode === node.id) return '#ffffff';
+                return node.color || '#2dd4bf';
+              }}
+              nodeLabel={(node: any) => node.label}
+              onNodeClick={handleNodeClick}
+              onNodeHover={(node: any) => setHoveredNode(node ? node.id : null)}
+              linkWidth={(link: any) => {
+                return hoveredNode === link.source.id || hoveredNode === link.target.id ? 2.5 : link.value;
+              }}
+              linkColor={(link: any) => {
+                const isSourceHovered = hoveredNode === link.source.id;
+                const isTargetHovered = hoveredNode === link.target.id;
+                if (isSourceHovered || isTargetHovered) return '#f472b6'; // hot pink connection
+                return theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+              }}
+              linkDirectionalParticles={linkParticles}
+              linkDirectionalParticleSpeed={linkParticleSpeed}
+              linkDirectionalParticleWidth={1.8}
+              linkDirectionalParticleColor={() => '#fbbf24'} // Amber action potential flows
+              cooldownTicks={120}
+              d3AlphaDecay={0.08}
+              d3VelocityDecay={0.35}
+            />
           </div>
         )}
 
@@ -619,20 +539,6 @@ export const MindMap: React.FC<MindMapProps> = ({ memories, theme = 'dark', onCo
                   <p className="text-slate-400 font-normal leading-relaxed text-[11px]">
                     {activeNode.fullText || activeNode.label}
                   </p>
-                  
-                  {activeNode.superpositionSummaries && activeNode.superpositionSummaries.length > 0 && (
-                    <div className="mt-2 p-2 border border-fuchsia-500/30 bg-fuchsia-500/10 rounded-lg">
-                      <span className="text-[9px] uppercase font-bold text-fuchsia-400 block mb-1">Quantum Superposition (Click Node to Collapse)</span>
-                      <div className="space-y-1">
-                        {activeNode.superpositionSummaries.map((s: any, idx: number) => (
-                          <div key={idx} className="flex justify-between text-[10px] text-slate-300 leading-normal gap-2">
-                            <span className="truncate max-w-[80%]">- {s.text}</span>
-                            <span className="text-fuchsia-400">{(s.probability * 100).toFixed(0)}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   
                   {activeNode.group === 2 && (
                     <button

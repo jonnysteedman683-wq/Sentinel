@@ -66,7 +66,16 @@
             "cognitiveLog": { "type": "map", "required": false },
             "debateLog": { "type": "array", "required": false },
             "selfAnalysis": { "type": "string", "required": false },
-            "suggestedShortcuts": { "type": "array", "required": false }
+            "suggestedShortcuts": { "type": "array", "required": false },
+            "sessionId": { "type": "string", "required": false }
+          }
+        },
+        "sessions": {
+          "description": "User chat sessions for conversation grouping",
+          "fields": {
+            "title": { "type": "string", "required": true },
+            "createdAt": { "type": "number", "required": true },
+            "updatedAt": { "type": "number", "required": true }
           }
         },
         "system_logs": {

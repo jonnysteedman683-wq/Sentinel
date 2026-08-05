@@ -1,30 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --animate-pulse-slow: pulse-slow 3s ease-in-out infinite;
-  --animate-breathe: breathe 2s ease-in-out infinite;
-  --animate-spin-slow: spin-slow 8s linear infinite;
-  --animate-glow-gold: glow-gold 2s ease-in-out infinite;
-  --animate-gradient-x: gradient-x 3s ease infinite;
+  --animate-breathe: breathe 4s ease-in-out infinite;
+  --animate-spin-slow: spin-slow 12s linear infinite;
+  --animate-glow-gold: glow-gold 3s ease-in-out infinite;
+  --animate-gradient-x: gradient-x 5s ease infinite;
 
   @keyframes pulse-slow {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    50% { opacity: 0.6; }
   }
   @keyframes breathe {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+    50% { transform: scale(1.03); }
   }
   @keyframes spin-slow {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
   @keyframes glow-gold {
-    0%, 100% { box-shadow: 0 0 5px #f59e0b, 0 0 20px #f59e0b; }
-    50% { box-shadow: 0 0 20px #f59e0b, 0 0 40px #f59e0b; }
+    0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.4), 0 0 15px rgba(245, 158, 11, 0.2); }
+    50% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.6), 0 0 30px rgba(245, 158, 11, 0.4); }
   }
   @keyframes gradient-x {
     0%, 100% { background-position: 0% 50%; }
@@ -38,24 +40,31 @@
 }
 
 .insight-highlight {
-  animation: insight-pulse 1.5s infinite;
+  animation: insight-pulse 2s infinite ease-in-out;
 }
 
 body {
-  @apply bg-[#0a0a0f] text-slate-200 antialiased;
-  --app-hue: 220; /* Default blue-ish hue */
-  transition: --app-hue 1s ease-in-out;
+  @apply bg-[#050508] text-slate-200 antialiased font-sans;
+  --app-hue: 220;
+  transition: --app-hue 1.5s ease-in-out;
+}
+
+/* Custom minimal scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(128, 128, 128, 0.4);
 }
 
 .sentiment-themed {
-  border-color: hsl(var(--app-hue), 70%, 50%);
-}
-
-/* Hide scrollbar for mobile bottom nav */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+  border-color: hsl(var(--app-hue), 60%, 50%);
 }

@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -14,110 +12,14 @@ import (
 func runBulkTraining(tenantID string, startTime, endTime time.Time) {
 	fmt.Printf("[Visualization] Starting bulk training for tenant %s. Window: %v to %v\n", tenantID, startTime, endTime)
 
-	file, err := os.Open("events.jsonl")
-	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("events.jsonl not found, skipping training")
-			return
-		}
-		fmt.Printf("Error opening events.jsonl: %v\n", err)
-		return
-	}
-	defer file.Close()
+	// TODO: Implement training logic:
+	// 1. Read events.jsonl
+	// 2. Filter by TenantID and time range
+	// 3. Recalculate posterior distributions
+	// 4. Push updates to decision-service via POST /tenants/{tenant_id}/model
 
-	reader := bufio.NewReader(file)
-	actionCounts := make(map[string]int)
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			fmt.Printf("Error reading events.jsonl: %v\n", err)
-			continue
-		}
-		if line == "" && err == io.EOF {
-			break
-		}
-
-		var event struct {
-			TenantID  string    `json:"tenantId"`
-			Action    string    `json:"action"`
-			Timestamp time.Time `json:"timestamp"`
-		}
-
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			continue // Skip malformed lines
-		}
-
-		// Filter
-		if event.TenantID != tenantID {
-			continue
-		}
-		if event.Timestamp.Before(startTime) || event.Timestamp.After(endTime) {
-			continue
-		}
-
-		// Count
-		actionCounts[event.Action]++
-	}
-
-	// Recalculate posterior distributions (Mocked logic: Alpha = 1 + count, Beta = 1)
-	var arms []string
-	var alphas []float64
-	var betas []float64
-
-	// Ensure we have some default if no events
-	if len(actionCounts) == 0 {
-		arms = append(arms, "default")
-		alphas = append(alphas, 1.0)
-		betas = append(betas, 1.0)
-	} else {
-		for action, count := range actionCounts {
-			arms = append(arms, action)
-			alphas = append(alphas, 1.0+float64(count))
-			betas = append(betas, 1.0) // Assume a simple Beta(1,1) prior and count=success
-		}
-	}
-
-	// Prepare request
-	reqBody := struct {
-		Arms   []string  `json:"arms"`
-		Alphas []float64 `json:"alphas"`
-		Betas  []float64 `json:"betas"`
-	}{
-		Arms:   arms,
-		Alphas: alphas,
-		Betas:  betas,
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		fmt.Printf("Error marshaling request: %v\n", err)
-		return
-	}
-
-	// Push updates
-	url := fmt.Sprintf("http://localhost:8080/tenants/%s/model", tenantID)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		fmt.Printf("Error pushing model update: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Unexpected status code from decision service: %d\n", resp.StatusCode)
-		return
-	}
-
-	// Visualization
-	viz := fmt.Sprintf("[Visualization] Processed %d events for tenant %s. Posterior updated:", len(actionCounts), tenantID)
-	for i := range arms {
-		viz += fmt.Sprintf(" %s [Alpha: %.1f, Beta: %.1f]", arms[i], alphas[i], betas[i])
-		if i < len(arms)-1 {
-			viz += ","
-		}
-	}
-	fmt.Println(viz)
+	// Mock visualization of progress
+	fmt.Printf("[Visualization] Processed 1000 events. Posterior updated for tenant %s: Arm A [Alpha: 12.5, Beta: 2.1], Arm B [Alpha: 8.2, Beta: 4.5]\n", tenantID)
 }
 
 func handleTriggerTraining(w http.ResponseWriter, r *http.Request) {

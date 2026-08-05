@@ -1,0 +1,22 @@
+{
+  "delivery": {
+    "files": [
+      {
+        "path": "src/lib/ai-service.ts",
+        "action": "update",
+        "exports": ["FallbackGenAI"]
+      },
+      {
+        "path": "src/App.tsx",
+        "action": "update",
+        "exports": ["App"]
+      },
+      {
+        "path": "server.ts",
+        "action": "update",
+        "exports": []
+      }
+    ],
+    "dependencies_added": []
+  }
+}

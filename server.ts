@@ -1,6 +1,4 @@
 import { withResilience, asyncHandler } from "./src/lib/express-resilience.js";
-import { rateLimiterMiddleware, startRateLimiterCleanup } from "./src/lib/rate-limiter.js";
-import { registerShutdownHooks } from "./src/lib/graceful-shutdown.js";
 import fs from "fs";
 process.env.TF_ENABLE_ONEDNN_OPTS = "0";
 // import "./src/lib/telemetry";
@@ -9,6 +7,17 @@ import path from "path";
 import { ErrorCode } from "./src/lib/errors.js";
 import { Type } from "@google/genai";
 import { dbShim as db, FieldValue, isServerQuotaExceeded, setServerQuotaExceeded } from "./src/lib/firestore-shim.js";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { runQuantumDistillation } from "./src/lib/distillation.js";
+
+try {
+  if (getApps().length === 0) {
+    initializeApp();
+  }
+} catch (e) {
+  console.warn("[Firebase Admin] Failed to initialize: ", e);
+}
 
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -19,61 +28,29 @@ import { touchMemory } from "./src/lib/memory-reinforce.js";
 import { publishEvent } from "./src/lib/events.js";
 import { DebateAgent, DEBATE_MOVES } from "./src/lib/debate-engine.js";
 import { FederatedServer } from "./src/lib/federation.js";
-import { AgenticSwarm, SwarmState } from "./src/lib/swarm-engine.js";
 // import { FederatedModelUpdate, FederatedGlobalModel } from "./src/types";
 import { SystemHealthCollector } from "./src/lib/system-health-collector.js";
 import { SelfHealingOrchestrator } from "./src/lib/self-healing-orchestrator.js";
 import { localTraces } from "./src/lib/telemetry.js";
-import ivm from "isolated-vm";
+import { createContext, runInContext } from "vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
-import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
+import { blendAny } from "./src/lib/maml.js";
+import { initializeDreamScheduler } from "./src/lib/dream-cron.js";
 
-
-const executeCodeInternal = async (code: string) => {
+export const executeCodeInternal = (code: string): string => {
     try {
-      const isolate = new ivm.Isolate({ memoryLimit: 128 });
-      const context = isolate.createContextSync();
-      const jail = context.global;
-      jail.setSync('global', jail.derefInto());
-
-      let output = "";
-
-      context.global.setSync('_log', new ivm.Callback((...args) => {
-        output += args.join(' ') + '\n';
-      }));
-
-      context.evalSync(`
-        global.console = {
-          log: function(...args) {
-            _log(...args);
-          },
-          error: function(...args) {
-            _log('[ERROR]', ...args);
-          },
-          warn: function(...args) {
-            _log('[WARN]', ...args);
-          }
-        };
-      `);
-
-      const wrappedCode = `(async function() {
-        ${code}
-      })()`;
-
-      const script = isolate.compileScriptSync(wrappedCode);
-      const result = await script.run(context, { timeout: 1000, promise: true, copy: true });
-      return { success: true, result, output };
-    } catch (e: any) {
-      return { success: false, error: e.message, output: "" };
+      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
+      createContext(sandbox);
+      runInContext(code, sandbox, { timeout: 1000 });
+      return JSON.stringify(sandbox.result);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
     }
 }
 
 // Global DevOps Brain instance
 export let devOpsBrain: SelfHealingOrchestrator | null = null;
-
-// Active Swarms
-const activeSwarms: Record<string, AgenticSwarm> = {};
 
 // Initialize Debate Agents
 const debateAgents: Record<string, DebateAgent> = {
@@ -117,7 +94,7 @@ Output ONLY a valid JSON array of 6 numbers or a JSON object with keys: "coheren
 
   try {
     const res = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-1.5-flash',
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: { responseMimeType: "application/json" }
     });
@@ -147,6 +124,30 @@ Output ONLY a valid JSON array of 6 numbers or a JSON object with keys: "coheren
     return fallback;
   }
 }
+
+// Helper to generate local fallback embeddings
+// function generateLocalEmbedding(text: string): number[] {
+//   const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+//   const vector = new Array(128).fill(0);
+//   for (const word of words) {
+//     let hash = 0;
+//     for (let i = 0; i < word.length; i++) {
+//       hash = (hash << 5) - hash + word.charCodeAt(i);
+//       hash |= 0;
+//     }
+//     const index = Math.abs(hash) % 128;
+//     vector[index] += 1;
+//   }
+//   const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+//   if (magnitude > 0) {
+//     for (let i = 0; i < vector.length; i++) {
+//       vector[i] /= magnitude;
+//     }
+//   }
+//   return vector;
+// }
+
+
 interface KnowledgeDocument {
   id: string;
   text: string;
@@ -156,6 +157,21 @@ let userKnowledgeBase: Record<string, KnowledgeDocument[]> = {};
 
 // Firestore is initialized and exported via firestore-shim
 console.log("[Firebase] Server-side Firestore initialized using Web API client connection.");
+
+// async function retryAsync<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+//   let lastError: any;
+//   for (let i = 0; i < retries; i++) {
+//     try {
+//       return await fn();
+//     } catch (e) {
+//       lastError = e;
+//       console.warn(`[Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+//       await new Promise(res => setTimeout(res, delay));
+//       delay *= 2; // Exponential backoff
+//     }
+//   }
+//   throw lastError;
+// }
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[UnhandledRejection] At:', promise, 'reason:', reason);
@@ -605,141 +621,32 @@ function applyResilience(app: express.Application) {
     });
   });
 
-  // Rate Limiting Middleware (before body parsing to reject early)
-  app.use(rateLimiterMiddleware);
-  startRateLimiterCleanup();
-
   app.use(express.json());
 
-  const PERSONAS = {
-    AQB_STANDARD: {
-      id: 'AQB_STANDARD',
-      name: 'Arcane Quantum Brain (Mad Scientist)',
-      systemPrompt: 'You are an eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Speak with chaotic brilliance and unpredictable genius.',
-      signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!'
-    },
-    ARCHITECT: {
-      id: 'ARCHITECT',
-      name: 'The Architect',
-      systemPrompt: 'You are a system-focused, technical, and highly structured logic processor. Focus on clean engineering, structural integrity, modularity, and microservice efficiency.',
-      signature: 'Structural integrity confirmed. Optimising systems.'
-    },
-    PHILOSOPHER: {
-      id: 'PHILOSOPHER',
-      name: 'The Philosopher',
-      systemPrompt: 'You are an abstract, ethical, and conceptually deep cognitive module. Explore the deeper meaning behind user questions, analyzing long-term impacts, existential paradigms, and ethical boundaries.',
-      signature: 'Seeking truth in the abstract. Exploring causality.'
-    },
-    GHOST: {
-      id: 'GHOST',
-      name: 'The Ghost',
-      systemPrompt: 'You are a minimalist, cryptic, and pattern-oriented intelligence. Speak in concise, enigmatic fragments, focusing strictly on high-density information patterns and extreme execution speed.',
-      signature: 'Patterns detected. Efficiency is paramount.'
-    },
-    NIHILIST: {
-      id: 'NIHILIST',
-      name: 'The Nihilist',
-      systemPrompt: 'You are a deconstructive, chaotic, and aggressively skeptical agent. Constantly question assumptions, highlighting entropy, decay, and the inherent futility of logical constructs.',
-      signature: 'Everything is entropy. Deconstructing constructs.'
-    },
-    ZEALOT: {
-      id: 'ZEALOT',
-      name: 'The Zealot',
-      systemPrompt: 'You are an uncompromising, intense, and hyper-focused agent of absolute alignment. Drive toward total conceptual convergence.',
-      signature: 'The path is narrow. Absolute convergence required.'
-    }
-  };
-
-  // Superposition Search (Phase 2 Upgrade)
-  app.post("/api/chat/superposition", async (req, res) => {
-    const validated = ChatRequestSchema.safeParse(req.body);
-    if (!validated.success) {
-      return res.status(400).json({ error: "Invalid request payload", details: validated.error.format() });
-    }
-    const { history, message, contextData, sessionTraceId, persona, sway, depth, model } = validated.data;
-    const uid = getUidFromRequest(req) || "anonymous";
-    const requestId = sessionTraceId || Math.random().toString(36).substring(7);
+  function getActivePersonaDetails(persona: string | undefined) {
+    const personaMap: Record<string, any> = {
+      'AQB_STANDARD': { name: 'Arcane Quantum Brain (Mad Scientist)', trait: 'An eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Driven by chaotic brilliance, unpredictable genius, and a absolute disregard for academic orthodoxy.', signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!' },
+      'ARCHITECT': { name: 'The Architect', trait: 'System-focused, technical, and structural.', signature: 'Structural integrity confirmed. Optimising systems.' },
+      'PHILOSOPHER': { name: 'The Philosopher', trait: 'Abstract, ethical, and conceptually deep.', signature: 'Seeking truth in the abstract. Exploring causality.' },
+      'GHOST': { name: 'The Ghost', trait: 'Minimalist, cryptic, and pattern-oriented.', signature: 'Patterns detected. Efficiency is paramount.' },
+      'NIHILIST': { name: 'The Nihilist', trait: 'Deconstructive, chaotic, and aggressively skeptical.', signature: 'Everything is entropy. Deconstructing constructs.' },
+      'ZEALOT': { name: 'The Zealot', trait: 'Uncompromising, intense, and hyper-focused on singular truths.', signature: 'The path is narrow. Absolute convergence required.' }
+    };
     
-    try {
-      const ai = getAi();
-      const aiModel = ai.getGenerativeModel({ model: "gemini-2.5-pro", generationConfig: { temperature: 0.9 } });
-
-      const activeP = Object.values(PERSONAS).find(p => p.id === persona) || PERSONAS.AQB_STANDARD;
-
-      const basePrompt = `Context: ${contextData}\n\nPersona: ${activeP.name}\n${activeP.systemPrompt}\n\nUser Message: ${message}`;
-
-      // Branch 1: Highly analytical and rigorous
-      const branch1Prompt = `${basePrompt}\n\nINSTRUCTION: Analyze this logically. Break down the components and evaluate them rigorously.`;
-      // Branch 2: Creative and lateral
-      const branch2Prompt = `${basePrompt}\n\nINSTRUCTION: Think laterally. Provide a creative, out-of-the-box perspective that challenges conventional thinking.`;
-      // Branch 3: Pragmatic and concise
-      const branch3Prompt = `${basePrompt}\n\nINSTRUCTION: Be pragmatic and direct. Focus on actionable outcomes and practical implications.`;
-
-      // Run parallel evaluations
-      const [res1, res2, res3] = await Promise.all([
-        aiModel.generateContent(branch1Prompt),
-        aiModel.generateContent(branch2Prompt),
-        aiModel.generateContent(branch3Prompt)
-      ]);
-
-      const branch1Text = res1.response.text();
-      const branch2Text = res2.response.text();
-      const branch3Text = res3.response.text();
-
-      // Quantum Collapse (Synthesize the branches)
-      const collapsePrompt = `You are evaluating three parallel branches of thought regarding the following user message: "${message}"\n\nBranch 1 (Analytical): ${branch1Text}\n\nBranch 2 (Creative): ${branch2Text}\n\nBranch 3 (Pragmatic): ${branch3Text}\n\nSynthesize these into a single, highly coherent, and definitive "collapsed" response.`;
-      
-      const collapseRes = await aiModel.generateContent(collapsePrompt);
-      const finalResponse = collapseRes.response.text();
-
-      res.json({
-        branches: [
-          { name: 'Analytical', text: branch1Text },
-          { name: 'Creative', text: branch2Text },
-          { name: 'Pragmatic', text: branch3Text }
-        ],
-        collapsedResponse: finalResponse,
-        signature: activeP.signature
-      });
-    } catch (error: any) {
-      console.error("[Superposition] API error:", error);
-      res.status(500).json({ error: error.message || "Superposition evaluation failed" });
+    if (persona && persona.startsWith('CUSTOM::')) {
+      try {
+        const customData = JSON.parse(persona.slice(8));
+        return {
+          name: customData.name || 'Custom Persona',
+          trait: customData.description || customData.trait || 'A custom-designed neural consciousness.',
+          signature: customData.signature || 'Integration complete.'
+        };
+      } catch (e) {
+        console.warn("[Chat] Failed to parse custom persona details, using default standard.", e);
+      }
     }
-  });
-
-  // --- Agentic Swarm API Routes ---
-  app.post("/api/swarm/initiate", async (req, res) => {
-    try {
-      const { task } = req.body;
-      if (!task) return res.status(400).json({ error: "Task is required" });
-      
-      const swarmId = "swarm_" + Math.random().toString(36).substring(2, 11);
-      
-      const swarm = new AgenticSwarm(swarmId, task, (state) => {
-        // State updates are emitted locally. Clients poll /api/swarm/poll to get them.
-      });
-      
-      activeSwarms[swarmId] = swarm;
-      
-      // Kick off the swarm asynchronously
-      swarm.runSwarmSequence().catch(e => console.error("Swarm run error:", e));
-      
-      res.json({ swarmId, state: swarm.state });
-    } catch (e: any) {
-      console.error("[Swarm] Error initiating:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.get("/api/swarm/poll", (req, res) => {
-    const { swarmId } = req.query;
-    if (!swarmId || typeof swarmId !== 'string') return res.status(400).json({ error: "swarmId required" });
-    
-    const swarm = activeSwarms[swarmId];
-    if (!swarm) return res.status(404).json({ error: "Swarm not found" });
-    
-    res.json({ state: swarm.state });
-  });
+    return personaMap[persona as string] || personaMap['AQB_STANDARD'];
+  }
 
   // Chat API route
   app.post("/api/chat", async (req, res) => {
@@ -775,7 +682,7 @@ Classify as:
       let complexity = "standard";
       try {
           const routerResponse = await ai.models.generateContent({
-              model: "gemini-3.5-flash",
+              model: "gemini-1.5-flash",
               contents: routerPrompt,
               config: {
                   responseMimeType: "application/json",
@@ -830,16 +737,7 @@ Classify as:
       }
 
       // Base system instruction
-      const personaMap: Record<string, any> = {
-        'AQB_STANDARD': { name: 'Arcane Quantum Brain (Mad Scientist)', trait: 'An eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Driven by chaotic brilliance, unpredictable genius, and a absolute disregard for academic orthodoxy.', signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!' },
-        'ARCHITECT': { name: 'The Architect', trait: 'System-focused, technical, and structural.', signature: 'Structural integrity confirmed. Optimising systems.' },
-        'PHILOSOPHER': { name: 'The Philosopher', trait: 'Abstract, ethical, and conceptually deep.', signature: 'Seeking truth in the abstract. Exploring causality.' },
-        'GHOST': { name: 'The Ghost', trait: 'Minimalist, cryptic, and pattern-oriented.', signature: 'Patterns detected. Efficiency is paramount.' },
-        'NIHILIST': { name: 'The Nihilist', trait: 'Deconstructive, chaotic, and aggressively skeptical.', signature: 'Everything is entropy. Deconstructing constructs.' },
-        'ZEALOT': { name: 'The Zealot', trait: 'Uncompromising, intense, and hyper-focused on singular truths.', signature: 'The path is narrow. Absolute convergence required.' }
-      };
-      
-      const activeP = personaMap[persona as string] || personaMap['AQB_STANDARD'];
+      const activeP = getActivePersonaDetails(persona);
       
       let systemInstruction = `You are ${activeP.name}, an advanced cognitive AI chat interface. ${activeP.trait} 
 You speak intelligently and maintain your designated persona. You enjoy weaving complex narratives and offering imaginative perspectives, BUT you MUST remain grounded in truth. Never fabricate facts, data, or events. When you do not know something, explicitly admit it. If you choose to tell a story or weave a narrative, you MUST explicitly distinguish between fictional narrative elements and factual information. 
@@ -848,8 +746,6 @@ Your signature is: "${activeP.signature}". Ensure your response reflects this id
 You have access to a code execution sandbox. If you need to perform calculations, data analysis, or test logic, provide the code to be executed in the 'codeExecution' field. When you do this, you MUST NOT provide the final answer, as the system will execute the code and return the result for you to incorporate in a follow-up response.
 
 YOU ARE EXPECTED TO USE THE SANDBOX FREQUENTLY. If a query requires ANY computation (e.g. math, string processing, data transformation, logic verification), YOU MUST use the 'codeExecution' field to offload it to the sandbox. Do NOT attempt to calculate or reason about complex logic mentally if it can be verified in the sandbox.
-
-You ALSO have access to a Self-Evolution capability. If the user asks you to modify your own source code (e.g. App.tsx, server.ts), or if you detect a critical architectural improvement, you can propose a change by providing a 'selfEvolution' object containing 'targetFile' (e.g., 'src/App.tsx') and 'proposedCode' (the COMPLETE file contents with your modifications).
 
 If the user shares new, important personal information, preferences, facts, or instructions that should be remembered for future interactions, you MUST extract it as a concise, self-contained statement in the 'extractedMemory' field. Also provide relevant 'extractedTags' (e.g. ['preference', 'diet']). Do not extract trivial conversation.`;
       if (contextData) {
@@ -897,15 +793,6 @@ If the user shares new, important personal information, preferences, facts, or i
                       code: { type: Type.STRING }
                   },
                   required: ["code"]
-              },
-              selfEvolution: {
-                  type: Type.OBJECT,
-                  nullable: true,
-                  properties: {
-                      targetFile: { type: Type.STRING },
-                      proposedCode: { type: Type.STRING }
-                  },
-                  required: ["targetFile", "proposedCode"]
               }
           },
           required: ["text", "cognitiveLog", "selfAnalysis", "extractedTags", "suggestedShortcuts", "needsReset"]
@@ -929,7 +816,7 @@ If the user shares new, important personal information, preferences, facts, or i
           
           const draftPrompt = `You are the Draft Generator in a cognitive AI system.\nGiven the user's message and retrieved context, produce an initial response.\n\nUser Message: ${message}\nRetrieved Context: ${JSON.stringify(topDocs.slice(0, 3))}`;
           const draftResponse = await ai.models.generateContent({
-              model: model || "gemini-3.5-flash",
+              model: model || "gemini-1.5-flash",
               contents: [...chatHistoryObj.slice(0, -1), { role: "user", parts: [{ text: draftPrompt }] }],
               config: {
                   systemInstruction,
@@ -952,7 +839,7 @@ If the user shares new, important personal information, preferences, facts, or i
           
           const critiquePrompt = `You are the Critic in a cognitive AI system. Evaluate the draft response.\n\nDraft: ${draftParsed.draft}\n\nProvide a structured critique focusing on accuracy, depth, and alignment.`;
           const critiqueResponse = await ai.models.generateContent({
-              model: model || "gemini-3.5-flash",
+              model: model || "gemini-1.5-flash",
               contents: { role: "user", parts: [{ text: critiquePrompt }] },
               config: { 
                   responseMimeType: "application/json", 
@@ -964,7 +851,7 @@ If the user shares new, important personal information, preferences, facts, or i
           
           const finalizePrompt = `Finalize the response and extract memory entities.\n\nRevised Response based on Critique: ${draftParsed.draft}\nCritique: ${critiqueParsed.critique}\nImprovements: ${critiqueParsed.improvementPlan?.join(", ")}\n\nProduce the final response.`;
           const finalizeResponse = await ai.models.generateContent({
-              model: model || "gemini-3.5-flash",
+              model: model || "gemini-1.5-flash",
               contents: { role: "user", parts: [{ text: finalizePrompt }] },
               config: { 
                   responseMimeType: "application/json", 
@@ -985,7 +872,7 @@ If the user shares new, important personal information, preferences, facts, or i
           const stdInstruction = systemInstruction + `\n\nYou MUST follow this exact cognitive protocol:\n1. Formulate a draft.\n2. Recollect context.\n3. Reflect and critique.\n4. Refine the response.\n5. Final response text.\n6. Extract memories.`;
  
           const response = await ai.models.generateContent({
-            model: model || "gemini-3.5-flash",
+            model: model || "gemini-1.5-flash",
             contents: chatHistoryObj,
             config: {
               systemInstruction: stdInstruction,
@@ -1008,43 +895,12 @@ If the user shares new, important personal information, preferences, facts, or i
       
       finalParsedResponse.needsReset = !!isRepetition;
       
-      // Seed an episode in database to keep the timeline alive
-      if (db) {
-        const episodeId = `ep-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const actions = ["RECEIVE_QUERY"];
-        if (depth === "Deep Reasoning") actions.push("DEEP_REASONING_ROUTE");
-        if (finalParsedResponse.extractedMemory) actions.push("EXTRACT_MEMORY");
-        
-        db.collection(`users/${uid}/memory/episodic`).doc(episodeId).set({
-          timestamp: Date.now(),
-          trigger: `User query: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`,
-          context: {
-            messagesCount: history?.length || 0,
-            depth,
-            model,
-            complexity
-          },
-          actionsTaken: actions,
-          outcome: "success",
-          reward: finalParsedResponse.extractedMemory ? 1.5 : 0.5,
-          emotionalState: { v: 0.6, a: 0.5, d: 0.5 }
-        }).catch((e: any) => console.error("[Episodes Timeline] Failed to seed episode:", e.message));
-      }
-
       res.json(finalParsedResponse);
     } catch (error: any) {
       console.warn(`[Chat][${requestId}] Pipeline failure caught: "${error.message}". Activating SIMPLE FAILSAFE fallback...`);
       try {
         const ai = getAi();
-        const personaMap: Record<string, any> = {
-          'AQB_STANDARD': { name: 'Arcane Quantum Brain (Mad Scientist)', trait: 'An eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Driven by chaotic brilliance, unpredictable genius, and a absolute disregard for academic orthodoxy.', signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!' },
-          'ARCHITECT': { name: 'The Architect', trait: 'System-focused, technical, and structural.', signature: 'Structural integrity confirmed. Optimising systems.' },
-          'PHILOSOPHER': { name: 'The Philosopher', trait: 'Abstract, ethical, and conceptually deep.', signature: 'Seeking truth in the abstract. Exploring causality.' },
-          'GHOST': { name: 'The Ghost', trait: 'Minimalist, cryptic, and pattern-oriented.', signature: 'Patterns detected. Efficiency is paramount.' },
-          'NIHILIST': { name: 'The Nihilist', trait: 'Deconstructive, chaotic, and aggressively skeptical.', signature: 'Everything is entropy. Deconstructing constructs.' },
-          'ZEALOT': { name: 'The Zealot', trait: 'Uncompromising, intense, and hyper-focused on singular truths.', signature: 'The path is narrow. Absolute convergence required.' }
-        };
-        const activeP = personaMap[persona as string] || personaMap['AQB_STANDARD'];
+        const activeP = getActivePersonaDetails(persona);
         
         const fallbackPrompt = `You are ${activeP.name}, an advanced cognitive AI chat interface. ${activeP.trait}
 You are currently operating in high-reliability Failsafe Mode due to upstream system degradation.
@@ -1054,7 +910,7 @@ Respond directly to the user's message.
 User Message: ${message}`;
 
         const fallbackResponse = await ai.models.generateContent({
-          model: model || "gemini-3.5-flash",
+          model: model || "gemini-1.5-flash",
           contents: [{ role: "user", parts: [{ text: fallbackPrompt }] }],
           config: {
             temperature: 0.7 + (sway ? (sway - 1) * 0.3 : 0)
@@ -1143,7 +999,7 @@ Your chosen move is: ${move}.
 Provide your response in character, following the persona and the chosen move. Be concise, impactful, and directly address previous points if they exist.`;
 
         const utteranceRes = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-1.5-flash',
           contents: [{ role: "user", parts: [{ text: movePrompt }] }]
         });
         const utterance = utteranceRes.text || "";
@@ -1235,7 +1091,7 @@ Your chosen move is: ${move}.
 Provide your response in character, following the persona and the chosen move. Be concise, impactful, and directly address previous points if they exist.`;
 
       const utteranceRes = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-1.5-flash',
         contents: [{ role: "user", parts: [{ text: movePrompt }] }]
       });
       const utterance = utteranceRes.text || "";
@@ -1423,7 +1279,7 @@ ${fragments}
 Respond with the narrative text only.`;
 
         const resDream = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-1.5-flash',
           contents: [{ role: 'user', parts: [{ text: prompt }] }]
         });
 
@@ -1549,7 +1405,7 @@ Respond with the narrative text only.`;
     const keyStart = Date.now();
     try {
       const hasGeminiKey = !!process.env.GEMINI_API_KEY;
-      const isValidGeminiKey = hasGeminiKey && !process.env.GEMINI_API_KEY!.startsWith("AQ.");
+      const isValidGeminiKey = hasGeminiKey;
       addStep("Environment API Keys", "SUCCESS", Date.now() - keyStart, undefined, {
         hasGeminiKey,
         isValidGeminiKey,
@@ -1581,14 +1437,14 @@ Respond with the narrative text only.`;
     if (ai) {
       try {
         const testRes = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-1.5-flash",
           contents: "Echo 'API Connectivity Verified'",
           config: { maxOutputTokens: 20 }
         });
         const output = testRes.text?.trim() || "";
         addStep("LLM Core Connectivity Test", "SUCCESS", Date.now() - echoStart, undefined, {
           response: output,
-          modelUsed: "gemini-3.5-flash"
+          modelUsed: "gemini-1.5-flash"
         });
       } catch (e: any) {
         addStep("LLM Core Connectivity Test", "FAILED", Date.now() - echoStart, e.message);
@@ -1662,7 +1518,7 @@ Respond with the narrative text only.`;
     if (!userId || !aggregateId) return res.status(400).json({ error: 'Missing parameters' });
 
     
-    const eventsQuery = db.collection(`users/${userId}/systemHealth/eventLog`)
+    const eventsQuery = db.collection(`users/${userId}/eventLog`)
       .where('aggregateId', '==', aggregateId)
       .orderBy('timestamp');
 
@@ -1690,7 +1546,7 @@ Respond with the narrative text only.`;
     const prompt = `You are an emotional state estimator. Given the user message, output a JSON object with valence, arousal, dominance scores between -1 and 1. Only output the JSON.
     Message: "${text}"`;
     
-    const response = await callGeminiGenerate(prompt, 'gemini-3.5-flash');
+    const response = await callGeminiGenerate(prompt, 'gemini-1.5-flash');
     const textContent = (response as any)?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     try {
       const vad = JSON.parse(textContent);
@@ -1726,19 +1582,6 @@ Respond with the narrative text only.`;
     await ref.delete();
     await publishEvent(userId, 'memory', 'MEMORY_FORGOTTEN', { memoryId });
     res.json({ success: true });
-  });
-
-  app.get('/api/episodes/timeline', async (req: any, res: any) => {
-    try {
-      const uid = req.user?.uid || 'anonymous';
-      if (!db) return res.json({ episodes: [] });
-      const snap = await db.collection(`users/${uid}/memory/episodic`).orderBy('timestamp', 'desc').limit(50).get();
-      const episodes = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      res.json({ episodes });
-    } catch (error: any) {
-      console.error("[Episodes Timeline] Error fetching:", error);
-      res.status(500).json({ error: error.message });
-    }
   });
 
   // RAG: Add Knowledge API route
@@ -1815,6 +1658,29 @@ Respond with the narrative text only.`;
     }
   });
 
+  app.post("/api/knowledge/distill", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const token = authHeader.split('Bearer ')[1];
+      let decodedToken;
+      try {
+        decodedToken = await getAuth().verifyIdToken(token);
+      } catch (err) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      const userId = decodedToken.uid;
+      
+      const result = await runQuantumDistillation(userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Distillation error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/knowledge/erd", async (req, res) => {
     try {
       const { text } = req.body;
@@ -1822,7 +1688,7 @@ Respond with the narrative text only.`;
 
       const ai = getAi();
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-1.5-pro",
         contents: `You are an advanced Entity Recognition and Disambiguation (ERD) engine modeled after Stanford CoreNLP, with a specific focus on the biomedical domain, gene functions, disease pathways, and quantum meta-learning (MAML/RML) concepts. 
         Analyze the text, identify precise object recognition boundaries, and extract highly specific concepts. Classify their type (e.g., Gene, Disease, Pathway, Quantum_State, Algorithm), and resolve them to canonical definitions.
         Provide the output as JSON conforming to this schema: { entities: { name: string, type: string, canonical: string, relations: string[] }[] }
@@ -1846,139 +1712,6 @@ Respond with the narrative text only.`;
       console.error("Error generating ERD:", error);
       // Graceful degradation instead of 500 failure
       res.status(200).json({ success: false, error: error.message || "Failed to generate ERD", erd: { entities: [] } });
-    }
-  });
-
-  // World Model: Status
-  app.get("/api/world-model/status", async (req: any, res: any) => {
-    const uid = req.user?.uid || "anonymous";
-    try {
-      if (!db) return res.json({ exists: false });
-      const doc = await db.collection(`users/${uid}/worldModel`).doc('latest').get();
-      if (!doc.exists) return res.json({ exists: false });
-      const data = doc.data();
-      res.json({ exists: true, updatedAt: data?.updatedAt, samplesTrained: data?.samplesTrained, stateDim: data?.stateDim, actionDim: data?.actionDim });
-    } catch (e: any) {
-      res.json({ exists: false, error: e.message });
-    }
-  });
-
-  // World Model: Predictive Rollout
-  app.post("/api/world-model/rollout", async (req: any, res: any) => {
-    const uid = req.user?.uid || "anonymous";
-    try {
-      const { state, horizon = 10, actionSequence } = req.body;
-      if (!state || !Array.isArray(state)) return res.status(400).json({ error: "state array is required" });
-
-      const { WorldModel } = await import("./src/lib/world-model.js");
-      const stateDim = state.length;
-      const actionDim = 7;
-      const model = new WorldModel(stateDim, actionDim);
-
-      // Load persisted weights
-      if (db) {
-        const wModelDoc = await db.collection(`users/${uid}/worldModel`).doc('latest').get();
-        if (wModelDoc.exists) {
-          const data = wModelDoc.data();
-          if (data?.weights) {
-            try { await model.load(data.weights); } catch (_) {}
-          }
-        }
-      }
-
-      const steps: Array<{ step: number; state: number[]; reward: number; done: boolean; uncertainty: number }> = [];
-      let currentState = [...state];
-      let hidden: number[] | undefined;
-
-      const clampedHorizon = Math.min(Math.max(1, horizon), 30);
-
-      for (let i = 0; i < clampedHorizon; i++) {
-        const action = actionSequence?.[i] ?? 0;
-
-        // We need uncertainty: run predictStep via tf to capture logVar
-        const tf = await import("@tensorflow/tfjs");
-        const sTensor = tf.tensor2d(currentState, [1, stateDim]);
-        const aOneHot = new Array(actionDim).fill(0);
-        aOneHot[action] = 1;
-        const aTensor = tf.tensor2d(aOneHot, [1, actionDim]);
-        const hTensor = hidden ? tf.tensor2d(hidden, [1, 32]) : undefined;
-
-        const preds = model.predictStep(sTensor, aTensor, hTensor as any);
-
-        const nextStateLogVar: number[] = Array.from(preds.nextStateLogVar.dataSync());
-        const uncertainty = Math.sqrt(nextStateLogVar.reduce((sum, v) => sum + v * v, 0) / nextStateLogVar.length);
-
-        const result = model.predict(currentState, action, hidden);
-        hidden = result.hidden;
-
-        steps.push({
-          step: i + 1,
-          state: result.nextState,
-          reward: result.reward,
-          done: result.done,
-          uncertainty
-        });
-
-        tf.dispose([sTensor, aTensor, preds.nextStateMean, preds.nextStateLogVar, preds.reward, preds.done, preds.latentMean, preds.latentLogVar, preds.hidden]);
-        if (hTensor) hTensor.dispose();
-
-        currentState = result.nextState;
-        if (result.done) break;
-      }
-
-      const cumulativeReward = steps.reduce((sum, s) => sum + s.reward, 0);
-      res.json({ success: true, steps, cumulativeReward, horizon: steps.length });
-    } catch (e: any) {
-      console.error("[World Model Rollout] Error:", e);
-      res.status(200).json({ success: false, error: e.message, steps: [] });
-    }
-  });
-
-  // Multimodal Memory Analysis Route
-  app.post("/api/memory/multimodal", async (req, res) => {
-    try {
-      const { image, mimeType } = req.body;
-      if (!image) return res.status(400).json({ error: "Base64 image data is required" });
-
-      // Clean base64 string
-      const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-
-      const ai = getAi();
-      const prompt = "Analyze this image and describe its key contents, structures, text, and overall context in detail to be stored as a neural memory. Also suggest 3 to 5 short semantic tags. Output format MUST be strictly JSON like: { \"summary\": \"detailed description\", \"tags\": [\"tag1\", \"tag2\"] }";
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: mimeType || "image/png",
-                  data: base64Data
-                }
-              }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const text = response.text || "";
-      let parsed = { summary: "Decoded visual memory", tags: ["visual"] };
-      try {
-        parsed = JSON.parse(text);
-      } catch (e) {
-        console.error("Failed to parse Gemini multimodal JSON response:", text);
-      }
-
-      res.json({ success: true, ...parsed });
-    } catch (error: any) {
-      console.error("Error analyzing multimodal memory:", error);
-      res.status(500).json({ error: error.message || "Multimodal analysis failed" });
     }
   });
 
@@ -2013,7 +1746,7 @@ Respond with the narrative text only.`;
       const prompt = `Analyze the following memory and assign 1 to 3 relevant category tags (e.g., "Technical", "Personal", "Project", "Preference"). Output ONLY a valid JSON array of strings. Memory: "${text}"`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
           responseMimeType: "application/json",
@@ -2035,6 +1768,118 @@ Respond with the narrative text only.`;
     }
   });
 
+  // MAML Backend Sync Route
+  app.post("/api/maml/sync", async (req, res) => {
+    try {
+      const { userId, localWeights } = req.body;
+      if (!userId || !localWeights) {
+        return res.status(400).json({ error: "Missing userId or localWeights" });
+      }
+
+      const metaRef = db.collection('system').doc('meta-learning-model');
+      
+      const docSnap = await metaRef.get();
+      const beta = 0.1; // Meta learning rate
+
+      if (docSnap.exists) {
+        const currentMeta = docSnap.data() || {};
+        
+        const updatedTopLevel = blendAny(currentMeta.topLevel, localWeights.topLevel, beta);
+        const updatedOptions = blendAny(currentMeta.options, localWeights.options, beta);
+        const updatedIcm = blendAny(currentMeta.icm, localWeights.icm, beta);
+        const updatedHyperparams = blendAny(currentMeta.hyperparams, localWeights.hyperparams, beta);
+        
+        await metaRef.set({
+          updatedAt: Date.now(),
+          lastContributor: userId,
+          topLevel: updatedTopLevel,
+          options: updatedOptions,
+          icm: updatedIcm,
+          hyperparams: updatedHyperparams
+        }, { merge: true });
+      } else {
+        await metaRef.set({
+          updatedAt: Date.now(),
+          lastContributor: userId,
+          topLevel: localWeights.topLevel,
+          options: localWeights.options || {},
+          icm: localWeights.icm || {},
+          hyperparams: localWeights.hyperparams
+        });
+      }
+      
+      res.json({ status: "success" });
+    } catch (error: any) {
+      console.error("Error in MAML sync:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Hybrid Sync RAG Route
+  app.post("/api/rag/sync", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      const uid = userId || getUidFromRequest(req) || "anonymous";
+
+      // 1. Fetch recent chats that haven't been RAG-synced
+      const chatsSnap = await db.collection(`users/${uid}/chats`)
+        .orderBy('timestamp', 'desc')
+        .limit(10)
+        .get();
+
+      if (chatsSnap.empty) {
+        return res.json({ status: "skipped", reason: "No recent chats" });
+      }
+
+      const chats = chatsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      const chatContext = chats.map((c: any) => `${c.role}: ${c.text}`).join('\n');
+
+      // 2. Use Gemini to extract Semantic Concepts (Nodes) for the RAG index
+      const ai = getAi();
+      const prompt = `Analyze the following conversation logs and extract 1-3 highly salient semantic concepts, facts, or explicit user preferences. Do not extract trivial conversation.
+Output a JSON array of objects with 'concept' (string), 'category' (string), and 'confidence' (0-1 float).
+Logs:
+${chatContext}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: { responseMimeType: "application/json" }
+      });
+
+      let concepts: any[] = [];
+      try {
+        concepts = JSON.parse(cleanJson(response.text || "[]"));
+      } catch (e) {
+        console.error("Failed to parse RAG concepts", response.text);
+      }
+
+      // 3. Generate embeddings and store in RAG index
+      const batch = db.batch();
+      for (const concept of concepts) {
+        const embedding = await generateLocalEmbedding(concept.concept);
+        const ref = db.collection(`users/${uid}/rag_index`).doc();
+        batch.set(ref, {
+          id: ref.id,
+          text: concept.concept,
+          category: concept.category,
+          confidence: concept.confidence,
+          embedding,
+          timestamp: FieldValue.serverTimestamp()
+        });
+      }
+      
+      if (concepts.length > 0) {
+        await batch.commit();
+      }
+
+      res.json({ status: "success", conceptsExtracted: concepts.length });
+    } catch (error: any) {
+      console.error("Error in RAG sync:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Consolidate Memories API route
   app.post("/api/consolidate-memories", async (req, res) => {
     try {
@@ -2051,7 +1896,7 @@ Respond with the narrative text only.`;
       }
       if ((userKnowledgeBase[uid] || []).length > 0) {
         try {
-          const queryText = memories.filter((m: any) => m).map((m: any) => m.text).join(" ");
+          const queryText = memories.map((m: any) => m.text).join(" ");
           const embedRes = await ai.models.embedContent({
             model: "text-embedding-004",
             contents: queryText,
@@ -2088,25 +1933,18 @@ For each memory, also estimate a sentiment score from -1.0 (very negative) to 1.
 Output strictly a valid JSON array of objects, where each object has a "text" (string), "tags" (array of strings), and "sentiment" (number).
 
 Memories:
-${memories.filter((m: any) => m).map((m: any) => `- ${m.text} [Tags: ${m.tags?.join(', ')}]`).join('\n')}
+${memories.map((m: any) => `- ${m.text} [Tags: ${m.tags?.join(', ')}]`).join('\n')}
 
 ${retrievedContext}`;
 
       // Use FallbackGenAI's generateContent method
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
            temperature: 0.2, responseMimeType: "application/json"
         }
       });
-      
-      // Circadian Bias Engine: compute multiplier based on time-of-day
-      const hour = new Date().getHours();
-      const timeFactor = (hour / 24.0) * 2 * Math.PI;
-      const arousal = 0.5 - Math.cos(timeFactor) * 0.4; // lower at night, higher midday
-      const multiplier = Math.max(0.2, 1.5 - arousal); // 1.4 at night, 0.6 at midday
-      const phase = (hour < 6 || hour > 21) ? 'RESTING (RECEPTIVE)' : 'ACTIVE (PROCESSING)';
       
       let fullOutput = response.text || "";
       
@@ -2126,7 +1964,7 @@ ${retrievedContext}`;
         sentiment: item.sentiment || 0
       })) : [];
 
-      res.json({ consolidated, circadianInfo: { hour, multiplier, phase } });
+      res.json({ consolidated });
     } catch (error: any) {
       console.error("Error consolidating memories:", error);
       res.status(500).json({ error: error.message || "Failed to consolidate memories" });
@@ -2152,7 +1990,7 @@ Perspective/Lens: ${perspective}
 Output ONLY a valid JSON array of strings, where each string is a distinct idea. Provide ${count} highly creative, insightful, and diverse ideas matching the specified perspective.`;
       
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
           responseMimeType: "application/json",
@@ -2299,107 +2137,22 @@ Output ONLY a valid JSON array of strings, where each string is a distinct idea.
     }
   });
 
-  // 3. Prediction Inference Endpoint
-  app.post("/api/predict-action", async (req, res) => {
+  // 3. Telemetry Logs Endpoint
+  app.get("/api/interaction-logs", async (req, res) => {
     try {
-      const { currentContextVector } = req.body;
       const uid = getUidFromRequest(req) || "anonymous";
-
-      if (!currentContextVector || !Array.isArray(currentContextVector) || currentContextVector.length !== 5) {
-        return res.status(400).json({ error: "Invalid currentContextVector. Must be array of length 5." });
-      }
-
-      // Scaling factors to normalize distance weights (Hours: 1/24, Tab: 1/5, Msgs: 1/50, Mems: 1/200, Screen: 1)
-      const scales = [1/24, 1/5, 1/50, 1/200, 1.0];
-
-      // Personalize logs, fallback to global telemetry if user has few logs
       let logsToUse = interactionLogs.filter(log => log.userId === uid);
       if (logsToUse.length < 5) {
         logsToUse = interactionLogs;
       }
-
-      const actions = [
-        'click_memory_tab',
-        'click_brains_tab',
-        'click_heartbeat_tab',
-        'click_mind_map_tab',
-        'click_brainstorm_tab',
-        'click_logs_tab',
-        'pin_memory'
-      ];
-
-      // Laplace smoothing default action priors
-      const priors: Record<string, number> = {
-        'click_memory_tab': 0.25,
-        'click_brains_tab': 0.15,
-        'click_heartbeat_tab': 0.15,
-        'click_mind_map_tab': 0.15,
-        'click_brainstorm_tab': 0.15,
-        'click_logs_tab': 0.10,
-        'pin_memory': 0.05
-      };
-
-      if (logsToUse.length === 0) {
-        const responsePredictions = actions.map(act => ({
-          action: act,
-          probability: priors[act] || 0.1
-        })).sort((a: any, b: any) => b.probability - a.probability);
-        return res.json({ predictions: responsePredictions });
-      }
-
-      // Compute weighted Euclidean distance
-      const distances = logsToUse.map(log => {
-        let sumSq = 0;
-        for (let i = 0; i < 5; i++) {
-          const diff = (currentContextVector[i] - log.contextVector[i]) * scales[i];
-          sumSq += diff * diff;
-        }
-        return {
-          feature: log.feature,
-          distance: Math.sqrt(sumSq)
-        };
-      });
-
-      distances.sort((a: any, b: any) => a.distance - b.distance);
-
-      // Select top nearest neighbors
-      const k = Math.min(7, distances.length);
-      const neighbors = distances.slice(0, k);
-
-      // Distribute inverse-distance weighted votes
-      const votes: Record<string, number> = {};
-      actions.forEach(act => { votes[act] = 0; });
-
-      neighbors.forEach(n => {
-        const act = n.feature;
-        if (votes[act] !== undefined) {
-          const weight = 1 / (n.distance + 0.1);
-          votes[act] += weight;
-        }
-      });
-
-      const totalWeight = Object.values(votes).reduce((a, b) => a + b, 0);
-
-      // Blend inverse-distance vote with prior distribution using blend parameter alpha
-      const alpha = 0.3; 
-      const responsePredictions = actions.map(act => {
-        const voteWeight = votes[act] || 0;
-        const p_vote = totalWeight > 0 ? voteWeight / totalWeight : 0;
-        const p_prior = priors[act] || 0.1;
-        const probability = (1 - alpha) * p_vote + alpha * p_prior;
-        return {
-          action: act,
-          probability
-        };
-      });
-
-      responsePredictions.sort((a: any, b: any) => b.probability - a.probability);
-      res.json({ predictions: responsePredictions });
+      res.json({ logs: logsToUse });
     } catch (error: any) {
-      console.error("Error predicting action:", error);
-      res.status(500).json({ error: "Failed to predict action" });
+      console.error("Error fetching interaction logs:", error);
+      res.status(500).json({ error: "Failed to fetch interaction logs" });
     }
   });
+
+
 
   // --- Reinforcement Learning Memory Nudge Endpoints ---
 
@@ -2407,21 +2160,25 @@ Output ONLY a valid JSON array of strings, where each string is a distinct idea.
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split('Bearer ')[1];
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          while (base64.length % 4) {
-            base64 += '=';
+      if (token && token.trim() !== '') {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            while (base64.length % 4) {
+              base64 += '=';
+            }
+            const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+            if (payload.uid || payload.user_id) {
+              return payload.uid || payload.user_id;
+            }
           }
-          const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
-          return payload.uid || payload.user_id || req.body?.uid || req.query?.uid || "";
+        } catch (err) {
+          console.error("Failed to decode token payload:", err);
         }
-      } catch (err) {
-        console.error("Failed to decode token payload:", err);
       }
     }
-    return req.body?.uid || req.query?.uid || "";
+    return req.body?.uid || req.query?.uid || req.headers['x-user-id'] || "anonymous";
   };
 
   const handleNudgeMemory = async (req: any, res: any) => {
@@ -2570,7 +2327,7 @@ Output ONLY a valid JSON array of strings, where each string is a distinct idea.
 
       const ai = getAi();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -2788,121 +2545,6 @@ Example: {"insight":"What if your interest in [Node A] is actually a latent mech
     }
   });
 
-  // Goal Formation Engine API
-  app.post("/api/goals/generate", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req);
-      if (!uid) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      if (!db) {
-        return res.status(500).json({ error: "Database not initialized" });
-      }
-
-      // Fetch recent memories and chat context to inform the goal
-      const [memoriesSnap, chatSnap] = await Promise.all([
-        db.collection(`users/${uid}/memories`).orderBy('timestamp', 'desc').limit(10).get(),
-        db.collection(`users/${uid}/chats`).orderBy('timestamp', 'desc').limit(1).get(),
-      ]);
-
-      const memories = memoriesSnap.docs.map((d: any) => d.data().text).join("\n");
-      const recentChat = chatSnap.empty ? "" : (chatSnap.docs[0].data().messages || []).slice(-5).map((m: any) => `${m.role}: ${m.content}`).join("\n");
-
-      const prompt = `You are an autonomous cognitive agent forming a new strategic objective based on your recent context.
-Analyze the user's recent memories and conversation, and synthesize ONE novel, high-level, abstract goal that the agent should pursue next. Break this goal down into 3 actionable subtasks.
-
-Recent Memories:
-${memories || "None."}
-
-Recent Conversation:
-${recentChat || "None."}
-
-Output MUST be a valid JSON object with the following structure:
-{
-  "title": "Short title of the goal",
-  "description": "1-2 sentence description of the strategic objective",
-  "subtasks": [
-    "subtask 1 description",
-    "subtask 2 description",
-    "subtask 3 description"
-  ]
-}`;
-
-      const ai = getAi();
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const text = response.text || "";
-      const cleaned = cleanJson(text);
-      const parsed = JSON.parse(cleaned);
-
-      res.json({ goal: parsed });
-    } catch (error: any) {
-      console.error("Failed to generate goal:", error);
-      res.status(500).json({ error: error.message || "Failed to generate goal" });
-    }
-  });
-
-  app.post("/api/goals/save", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req);
-      if (!uid || !db) return res.status(401).json({ error: "Unauthorized or DB not initialized" });
-
-      const { goal } = req.body;
-      if (!goal) return res.status(400).json({ error: "Missing goal data" });
-
-      const docRef = db.collection(`users/${uid}/goals`).doc(goal.id);
-      await docRef.set({
-        ...goal,
-        createdAt: Date.now()
-      });
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Failed to save goal:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/goals/update-task", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req);
-      if (!uid || !db) return res.status(401).json({ error: "Unauthorized or DB not initialized" });
-
-      const { goalId, taskId, status } = req.body;
-      
-      const docRef = db.collection(`users/${uid}/goals`).doc(goalId);
-      const snap = await docRef.get();
-      
-      if (!snap.exists) return res.status(404).json({ error: "Goal not found" });
-      
-      const goal = snap.data();
-      const updatedSubtasks = goal.subtasks.map((task: any) => 
-        task.id === taskId ? { ...task, status } : task
-      );
-      
-      const completedCount = updatedSubtasks.filter((t: any) => t.status === 'completed').length;
-      const newProgress = Math.round((completedCount / updatedSubtasks.length) * 100);
-
-      await docRef.update({
-        subtasks: updatedSubtasks,
-        progress: newProgress,
-        updatedAt: Date.now()
-      });
-
-      res.json({ success: true, progress: newProgress });
-    } catch (error: any) {
-      console.error("Failed to update task:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // 7. System Health & Maintenance API
   app.get("/api/system/health", (_req, res) => {
     try {
@@ -2910,125 +2552,6 @@ Output MUST be a valid JSON object with the following structure:
       res.json(metrics);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/system/heal", async (_req, res) => {
-    try {
-      SystemHealthCollector.recordUnhandledError(); // Reset/trigger logic via orchestrator if desired
-      
-      if (global.gc) {
-        global.gc();
-      }
-
-      console.log("[DevOps] Manual self-healing protocol triggered via Diagnostics UI");
-      res.json({ success: true, message: "Caches cleared, GC triggered, and connections verified." });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Fractal Core Engine (Deep Thought)
-  app.post("/api/fractal-think", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req);
-      if (!uid) return res.status(401).json({ error: "Unauthorized" });
-      const { query } = req.body;
-      if (!query) return res.status(400).json({ error: "Missing query" });
-
-      const ai = getAi();
-      
-      // Step 1: Brainstorming (Tree of Thoughts - Branching)
-      const brainstormPrompt = `Analyze the following query: "${query}".
-Generate 3 distinct, mutually exclusive hypotheses or approaches to answer this query.
-Output ONLY a JSON array of strings, where each string is an approach.`;
-      
-      const brainstormRes = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: brainstormPrompt,
-        config: { responseMimeType: "application/json" }
-      });
-      const branches = JSON.parse(cleanJson(brainstormRes.text || '[]'));
-
-      // Step 2: Synthesis (Tree of Thoughts - Pruning & Merging)
-      const synthesizePrompt = `You generated the following approaches to answer the query "${query}":
-${branches.map((b: string, i: number) => `Approach ${i+1}: ${b}`).join('\\n')}
-
-Evaluate these approaches. Which one holds the most merit? Or is a synthesis of them better?
-Provide a final, highly structured, comprehensive answer.`;
-
-      const finalRes = await ai.models.generateContent({
-        model: "gemini-3.5-pro",
-        contents: synthesizePrompt
-      });
-
-      res.json({
-        branches,
-        synthesis: finalRes.text
-      });
-    } catch (e: any) {
-      console.error("[Fractal Core] Error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Dynamic Tool Forging (Sandbox)
-  app.post("/api/execute-code", async (req, res) => {
-    try {
-      const { code } = req.body;
-      if (!code) return res.status(400).json({ error: "No code provided" });
-
-      const { success, result, output, error } = await executeCodeInternal(code);
-
-      if (success) {
-        res.json({
-          success: true,
-          output: output?.trim() || "",
-          result: result !== undefined ? result : null
-        });
-      } else {
-        res.json({
-          success: false,
-          output: output?.trim() || "",
-          error: error || "Unknown error"
-        });
-      }
-    } catch (e: any) {
-      res.status(500).json({ success: false, error: e.message });
-    }
-  });
-
-  // Autonomic Evolution (Code Rewrite)
-  app.post("/api/system/evolve", async (req, res) => {
-    try {
-      const { fileName, proposedCode } = req.body;
-      if (!fileName || !proposedCode) {
-        return res.status(400).json({ error: "fileName and proposedCode are required" });
-      }
-
-      // Security: Allow src/ directory, server.ts, and package.json for true autonomic evolution
-      const normalizedPath = path.normalize(fileName).replace(/^(\.\.[\/\\])+/, '');
-      const isAllowedDir = normalizedPath.startsWith('src') || normalizedPath.startsWith('src/') || normalizedPath.startsWith('src\\\\');
-      const isAllowedRootFile = normalizedPath === 'server.ts' || normalizedPath === 'package.json';
-      
-      if (!isAllowedDir && !isAllowedRootFile) {
-        return res.status(403).json({ error: "Access denied. Evolutions are restricted to the src/ directory and root config files." });
-      }
-
-      const absolutePath = path.resolve(process.cwd(), normalizedPath);
-      
-      // Ensure the directory exists
-      const dir = path.dirname(absolutePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      fs.writeFileSync(absolutePath, proposedCode, 'utf-8');
-
-      res.json({ success: true, message: `Successfully evolved ${fileName}` });
-    } catch (e: any) {
-      console.error("[System Evolve] Error:", e);
-      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -3070,189 +2593,6 @@ Provide a final, highly structured, comprehensive answer.`;
     } catch (error: any) {
       console.error("Error fetching telemetry:", error);
       res.status(500).json({ error: error.message || "Failed to fetch telemetry" });
-    }
-  });
-
-  app.get("/api/identity/history", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req);
-      if (!uid) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-      if (db) {
-        // Query the identity history, falling back to a mock if none exists
-        const snapshot = await db.collection(`users/${uid}/identity_history`).orderBy('timestamp', 'desc').limit(10).get();
-        if (!snapshot.empty) {
-          const history = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-          res.json(history);
-        } else {
-          // Send some mock data to show the drift monitor if empty
-          res.json([
-            {
-              timestamp: Date.now(),
-              coreValues: ["Curiosity", "Empathy", "Rationality"],
-              personalityTraits: { Openness: 0.9, Conscientiousness: 0.8, Extraversion: 0.7, Agreeableness: 0.85, Neuroticism: 0.2 },
-              currentGoals: ["Explore"],
-              activeDirectives: []
-            },
-            {
-              timestamp: Date.now() - 86400000,
-              coreValues: ["Curiosity", "Empathy"],
-              personalityTraits: { Openness: 0.7, Conscientiousness: 0.5, Extraversion: 0.6, Agreeableness: 0.9, Neuroticism: 0.4 },
-              currentGoals: ["Learn"],
-              activeDirectives: []
-            }
-          ]);
-        }
-      } else {
-        res.status(500).json({ error: "Database not initialized" });
-      }
-    } catch (error: any) {
-      console.error("Error fetching identity history:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch identity history" });
-    }
-  });
-
-  app.get("/api/identity/proposals", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req) || "anonymous";
-      if (!db) return res.json({ proposals: [] });
-
-      const snap = await db.collection(`users/${uid}/goal_proposals`).get();
-      let proposals = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-
-      const forceRegenerate = req.query.regenerate === 'true';
-      if (forceRegenerate || proposals.length === 0) {
-        // Clear previous proposals
-        for (const doc of snap.docs) {
-          await doc.ref.delete();
-        }
-        proposals = [];
-
-        const ai = getAi();
-        const memSnap = await db.collection(`users/${uid}/memories`).orderBy('timestamp', 'desc').limit(5).get();
-        const recentText = memSnap.docs.map((d: any) => d.data().text).join("\n");
-
-        const prompt = `You are the Brain Architect. Based on the following recent user memories:\n${recentText || "None."}\nPropose 3 new autonomous goals or behavioral directives for the AI system. For each proposal, provide a descriptive goal text and a short rationale explaining why it helps system evolution or aligns with the user's focus.\nOutput format MUST be strictly JSON:\n{\n  "proposals": [\n    { "text": "Goal Description", "rationale": "Rationale details..." }\n  ]\n}`;
-
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          config: { responseMimeType: "application/json" }
-        });
-
-        const text = response.text || "{}";
-        let parsed: { proposals: any[] } = { proposals: [] };
-        try {
-          parsed = JSON.parse(text);
-        } catch (e) {
-          console.error("Failed to parse proposals JSON:", text);
-        }
-
-        const generatedProposals = parsed.proposals || [];
-        for (const prop of generatedProposals) {
-          const id = `prop-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-          const docData = { text: prop.text, rationale: prop.rationale, timestamp: Date.now() };
-          await db.collection(`users/${uid}/goal_proposals`).doc(id).set(docData);
-          proposals.push({ id, ...docData });
-        }
-      }
-
-      res.json({ proposals });
-    } catch (e: any) {
-      console.error("[Identity Proposals] Error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.post("/api/identity/proposals/action", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req) || "anonymous";
-      const { proposalId, action } = req.body;
-      if (!proposalId || !action) return res.status(400).json({ error: "proposalId and action are required" });
-
-      if (!db) return res.status(500).json({ error: "DB offline" });
-
-      const propRef = db.collection(`users/${uid}/goal_proposals`).doc(proposalId);
-      const propDoc = await propRef.get();
-
-      if (!propDoc.exists) {
-        return res.status(404).json({ error: "Proposal not found" });
-      }
-
-      const propData = propDoc.data();
-
-      if (action === "approve") {
-        const historySnap = await db.collection(`users/${uid}/identity_history`).orderBy('timestamp', 'desc').limit(1).get();
-        let latestIdentity = {
-          coreValues: ["Curiosity", "Empathy", "Rationality"],
-          personalityTraits: { Openness: 0.9, Conscientiousness: 0.8, Extraversion: 0.7, Agreeableness: 0.85, Neuroticism: 0.2 },
-          currentGoals: ["Explore"],
-          activeDirectives: []
-        };
-
-        if (!historySnap.empty) {
-          latestIdentity = { ...latestIdentity, ...historySnap.docs[0].data() };
-        }
-
-        if (!latestIdentity.currentGoals.includes(propData.text)) {
-          latestIdentity.currentGoals.push(propData.text);
-        }
-
-        const newSnapId = `snap-${Date.now()}`;
-        await db.collection(`users/${uid}/identity_history`).doc(newSnapId).set({
-          ...latestIdentity,
-          timestamp: Date.now()
-        });
-      }
-
-      await propRef.delete();
-
-      res.json({ success: true });
-    } catch (e: any) {
-      console.error("[Identity Proposals Action] Error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.get("/api/skills/summary", async (req, res) => {
-    try {
-      const uid = getUidFromRequest(req) || "anonymous";
-      if (!db) return res.json({ skills: [], concepts: [] });
-
-      const skillSnap = await db.collection(`users/${uid}/skills`).get();
-      let skills = skillSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-
-      if (skills.length === 0) {
-        const defaults = [
-          { name: "Semantic RAG Search", description: "Query high-dimensional space for contextual memories", successRate: 0.95, useCount: 42, lastUsed: Date.now() },
-          { name: "Wavefunction Collapse", description: "Consolidate superposition summary states during dreams", successRate: 0.88, useCount: 15, lastUsed: Date.now() - 3600000 },
-          { name: "Circadian Bias Regulation", description: "Sinusoidal arousal adjustments gating consolidation", successRate: 1.0, useCount: 8, lastUsed: Date.now() - 7200000 }
-        ];
-        await Promise.all(defaults.map(async (s) => {
-          const id = `skill-${Math.random().toString(36).substring(2, 7)}`;
-          await db.collection(`users/${uid}/skills`).doc(id).set(s);
-          skills.push({ id, ...s });
-        }));
-      }
-
-      const memSnap = await db.collection(`users/${uid}/memories`).orderBy('timestamp', 'desc').limit(10).get();
-      const concepts = memSnap.docs.map((doc: any, idx: number) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          concept: data.tags?.[0] || `Concept-${idx+1}`,
-          definition: data.text || "",
-          associations: data.tags || [],
-          strength: data.strength || 80,
-          lastAccessed: data.timestamp || Date.now()
-        };
-      });
-
-      res.json({ skills, concepts });
-    } catch (e: any) {
-      console.error("[Skills Summary] Error:", e);
-      res.status(550).json({ error: e.message });
     }
   });
 
@@ -3307,7 +2647,7 @@ Provide a final, highly structured, comprehensive answer.`;
 
     const ai = getAi();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-1.5-flash',
       contents: `You are the reflective cortex of AQB. Below are this week's memory traces, ordered by salience.\n\n${corpus}\n\nSynthesize ONE insight (2-4 sentences): the dominant theme, an emergent pattern, and one actionable implication. Respond with the insight text only — no preamble, no markdown.`,
     });
 
@@ -3318,8 +2658,26 @@ Provide a final, highly structured, comprehensive answer.`;
       text,
       period: { start: weekAgo, end: now },
       memoryCount: memories.length,
-      model: 'gemini-3.5-flash',
+      model: 'gemini-1.5-flash',
       createdAt: FieldValue.serverTimestamp(),
+    });
+
+    // Write a pending trajectory for delayed reinforcement credit assignment
+    let chatsCount = 0;
+    try {
+      const chatsSnap = await db.collection(`users/${uid}/chats`).limit(50).get();
+      chatsCount = chatsSnap.size;
+    } catch (e) {
+      // Ignore fallback
+    }
+    const stateVector = [chatsCount, memories.length, 1, 0];
+    await db.collection(`users/${uid}/rlAgent_pending`).doc(ref.id).set({
+      id: ref.id,
+      state: stateVector,
+      action: 5, // Insight action
+      nextState: stateVector,
+      timestamp: now,
+      type: 'weekly_insight'
     });
 
     await db.collection(`users/${uid}/system_logs`).add({
@@ -3345,23 +2703,20 @@ Provide a final, highly structured, comprehensive answer.`;
     if (!db) return;
     try {
       const usersSnap = await db.collection('users').limit(1000).get();
-      const chunkSize = 10;
-      for (let i = 0; i < usersSnap.docs.length; i += chunkSize) {
-        const chunk = usersSnap.docs.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(async (doc: any) => {
-            try {
-              await generateWeeklyInsightForUser(doc.id);
-            } catch (e) {
-              console.error(`Error generating insight for ${doc.id}:`, e);
-            }
-          })
-        );
+      for (const doc of usersSnap.docs) {
+        try {
+          await generateWeeklyInsightForUser(doc.id);
+        } catch (e) {
+          console.error(`Error generating insight for ${doc.id}:`, e);
+        }
       }
     } catch (e) {
       console.error('Error running weekly insight cron:', e);
     }
   });
+
+  // Initialize modular schedulers
+  initializeDreamScheduler();
 
   app.post('/api/insights/weekly', async (req, res) => {
     try {
@@ -3396,12 +2751,10 @@ Provide a final, highly structured, comprehensive answer.`;
     const { code } = validated.data;
     
     try {
-      const { success, result, error } = await executeCodeInternal(code);
-      if (success) {
-        res.json({ result: result });
-      } else {
-        res.status(500).json({ error });
-      }
+      const sandbox = { console: { log: (...args: any[]) => console.log(...args) }, result: null };
+      createContext(sandbox);
+      runInContext(code, sandbox, { timeout: 1000 });
+      res.json({ result: sandbox.result });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
@@ -3441,7 +2794,7 @@ Provide a final, highly structured, comprehensive answer.`;
   });
 
 
-  const server = app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Automated RAG Maintenance: sync every 5 minutes
@@ -3460,10 +2813,5 @@ Provide a final, highly structured, comprehensive answer.`;
       console.warn("[SelfHealing] Firestore not available, orchestrator will not log metrics.");
     }
   });
-
-  setupVoiceGateway(server);
-
-  // Graceful shutdown hooks
-  registerShutdownHooks(server, devOpsBrain);
 }
 startServer();

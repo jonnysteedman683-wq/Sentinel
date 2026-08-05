@@ -5,6 +5,8 @@ import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { publishEvent } from './events.js';
 import { MemoryNode } from '../types.js';
 import { randomUUID } from 'crypto';
+import { syncFederatedSynapses } from './crdt-federation-service.js';
+import { SynapticPayload, CRDTSynapse } from './crdt-synapse.js';
 
 const tracer = trace.getTracer('arcane-brain');
 
@@ -20,7 +22,7 @@ export async function updateHebbianTraces(userId: string, vad?: { v: number, a: 
   const span = tracer.startSpan('updateHebbianTraces');
   try {
     
-    const eventsRef = db.collection(`users/${userId}/systemHealth/eventLog`);
+    const eventsRef = db.collection(`users/${userId}/eventLog`);
     
     // Fetch recent memory reinforcements
     // In a real implementation we might keep track of the last processed timestamp
@@ -70,35 +72,17 @@ export async function updateHebbianTraces(userId: string, vad?: { v: number, a: 
       }
     }
     
-    const batch = db.batch();
-    const edgesRef = db.collection(`users/${userId}/hebbianEdges`);
+    const payloads: SynapticPayload[] = Object.values(edgeUpdates).map(u => ({
+      source: u.source,
+      target: u.target,
+      weightAdds: { 'server-node': u.increment },
+      weightSubs: {},
+      lastCoaccess: u.lastTime
+    }));
     
-    let updatedCount = 0;
-    for (const [id, update] of Object.entries(edgeUpdates)) {
-      const edgeRef = edgesRef.doc(id);
-      const edgeSnap = await edgeRef.get();
-      
-      if (edgeSnap.exists) {
-        const currentTrace = edgeSnap.data()?.trace || 0;
-        batch.set(edgeRef, {
-          trace: Math.min(1.0, currentTrace + update.increment),
-          lastCoaccess: update.lastTime
-        }, { merge: true });
-      } else {
-        batch.set(edgeRef, {
-          id,
-          source: update.source,
-          target: update.target,
-          trace: Math.min(1.0, update.increment),
-          lastCoaccess: update.lastTime
-        });
-      }
-      updatedCount++;
-    }
-    
-    if (updatedCount > 0) {
-      await batch.commit();
-      await publishEvent(userId, 'hebbian', 'HEBBIAN_TRACES_UPDATED', { updatedCount });
+    if (payloads.length > 0) {
+      await syncFederatedSynapses(userId, 'server-node', payloads);
+      await publishEvent(userId, 'hebbian', 'HEBBIAN_TRACES_UPDATED', { updatedCount: payloads.length });
     }
     
     span.setStatus({ code: SpanStatusCode.OK });
@@ -114,7 +98,7 @@ export async function pruneWeakEdges(userId: string, threshold: number = 0.1) {
   const span = tracer.startSpan('pruneWeakEdges');
   try {
     
-    const edgesRef = db.collection(`users/${userId}/hebbianEdges`);
+    const edgesRef = db.collection(`users/${userId}/federatedSynapses`);
     
     // Apply decay to all edges based on time since lastCoaccess
     const snapshot = await edgesRef.get();
@@ -123,16 +107,23 @@ export async function pruneWeakEdges(userId: string, threshold: number = 0.1) {
     let prunedCount = 0;
     
     snapshot.docs.forEach((doc: any) => {
-      const edge = doc.data() as HebbianEdge;
-      const hoursSince = (now - edge.lastCoaccess) / (1000 * 60 * 60);
+      const payload = doc.data() as SynapticPayload;
+      const crdt = new CRDTSynapse('server-node', [payload]);
+      const currentTrace = crdt.getWeight(payload.source, payload.target);
+      
+      const hoursSince = (now - payload.lastCoaccess) / (1000 * 60 * 60);
       const decay = Math.exp(-0.02 * hoursSince); // Decay rate
-      const newTrace = edge.trace * decay;
+      const newTrace = currentTrace * decay;
       
       if (newTrace < threshold) {
         batch.delete(doc.ref);
         prunedCount++;
       } else {
-        batch.set(doc.ref, { trace: newTrace }, { merge: true });
+        // Logically we apply a subtractive weight to reflect decay
+        const diff = currentTrace - newTrace;
+        crdt.updateWeight(payload.source, payload.target, -diff, now);
+        const updatedPayload = crdt.exportState()[0];
+        batch.set(doc.ref, updatedPayload, { merge: true });
       }
     });
     
@@ -165,7 +156,7 @@ export async function neurogenesisPhase(userId: string, vad: { v: number, a: num
   try {
     
     const memRef = db.collection(`users/${userId}/memories`);
-    const edgesRef = db.collection(`users/${userId}/hebbianEdges`);
+    const edgesRef = db.collection(`users/${userId}/federatedSynapses`);
     
     // Only core or longTerm memories
     const activeSnap = await memRef.where('state', 'in', ['core', 'longTerm']).get();
@@ -178,8 +169,9 @@ export async function neurogenesisPhase(userId: string, vad: { v: number, a: num
     }
     
     const edgesSnap = await edgesRef.get();
-    const edges = edgesSnap.docs.map((d: any) => d.data() as HebbianEdge);
-    const linkedPairs = new Set(edges.map((e: any) => e.source < e.target ? `${e.source}_${e.target}` : `${e.target}_${e.source}`));
+    const edges = edgesSnap.docs.map((d: any) => d.data() as SynapticPayload);
+    const crdtHelper = new CRDTSynapse('server-node');
+    const linkedPairs = new Set(edges.map((e: any) => crdtHelper.edgeId(e.source, e.target)));
     
     // Modulation by VAD
     // Higher arousal -> lower similarity threshold needed for bridge (more connections)
@@ -205,7 +197,7 @@ export async function neurogenesisPhase(userId: string, vad: { v: number, a: num
           if (sim > threshold) {
             // Generate Bridge
             const prompt = `Synthesize a bridging conceptual insight connecting these two ideas (max 1 sentence):\nIdea 1: ${m1.content}\nIdea 2: ${m2.content}`;
-            const insightResponse = await callGeminiGenerate(prompt, 'gemini-3.5-flash');
+            const insightResponse = await callGeminiGenerate(prompt, 'gemini-1.5-flash');
             const insight = (insightResponse as any)?.candidates?.[0]?.content?.parts?.[0]?.text || `A conceptual bridge between idea 1 and idea 2.`;
             
             const bridgeId = `bridge-${randomUUID()}`;
@@ -229,12 +221,24 @@ export async function neurogenesisPhase(userId: string, vad: { v: number, a: num
             
             await memRef.doc(bridgeId).set(bridgeNode);
             
-            // Create links
-            const edge1Id = bridgeId < m1.id ? `${bridgeId}_${m1.id}` : `${m1.id}_${bridgeId}`;
-            const edge2Id = bridgeId < m2.id ? `${bridgeId}_${m2.id}` : `${m2.id}_${bridgeId}`;
+            // Create links via CRDT
+            const nowTime = Date.now();
+            const bridgePayload1 = {
+              source: bridgeId,
+              target: m1.id,
+              weightAdds: { 'server-node': 0.5 },
+              weightSubs: {},
+              lastCoaccess: nowTime
+            };
+            const bridgePayload2 = {
+              source: bridgeId,
+              target: m2.id,
+              weightAdds: { 'server-node': 0.5 },
+              weightSubs: {},
+              lastCoaccess: nowTime
+            };
             
-            await edgesRef.doc(edge1Id).set({ id: edge1Id, source: bridgeId, target: m1.id, trace: 0.5, lastCoaccess: Date.now() });
-            await edgesRef.doc(edge2Id).set({ id: edge2Id, source: bridgeId, target: m2.id, trace: 0.5, lastCoaccess: Date.now() });
+            await syncFederatedSynapses(userId, 'server-node', [bridgePayload1, bridgePayload2]);
             
             linkedPairs.add(pairId); // Prevent duplicate bridge for this pair
             bridgesCreated++;

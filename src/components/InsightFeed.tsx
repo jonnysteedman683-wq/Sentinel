@@ -10,7 +10,7 @@ interface SavedInsight {
   successScore?: number;
 }
 
-export default function InsightFeed({ onReward }: { onReward?: (reward: number) => void }) {
+export default function InsightFeed({ onReward }: { onReward?: (reward: number, insightId: string) => void }) {
   const [insights, setInsights] = useState<SavedInsight[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -34,7 +34,7 @@ export default function InsightFeed({ onReward }: { onReward?: (reward: number) 
       successScore: score
     });
     if (onReward) {
-      onReward(score);
+      onReward(score, id);
     }
   };
 
@@ -51,13 +51,13 @@ export default function InsightFeed({ onReward }: { onReward?: (reward: number) 
   }
 
   return (
-    <div className="fixed left-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur border-r border-gray-700 p-4 z-40 overflow-y-auto flex flex-col">
+    <div className="fixed left-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur border-r border-gray-700 p-4 z-40 overflow-y-auto custom-scrollbar flex flex-col">
       <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-700">
         <h2 className="text-lg font-semibold text-amber-300">Weekly Insights</h2>
         <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white">✕</button>
       </div>
       
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
         {insights.length === 0 && <p className="text-gray-500 text-sm italic">No insights synthesized yet.</p>}
         {insights.map(ins => (
           <div key={ins.id} className="mb-4 p-3 bg-slate-800/80 border border-amber-500/20 rounded-lg text-sm flex flex-col relative group">

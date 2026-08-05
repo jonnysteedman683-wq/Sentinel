@@ -35,4 +35,3 @@ message FeatureValue {
 message NumericVector {
   repeated double values = 1;
 }
-option go_package = "sentinel/proto/sentinel/v1/events";

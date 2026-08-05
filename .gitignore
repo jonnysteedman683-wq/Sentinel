@@ -1,33 +1,4 @@
-# Dependencies
 node_modules
-
-# Environment
 .env
-.env.local
-.env.*.local
-
-# Build output
-dist
-*.tsbuildinfo
-
-# Vite temp files
-vite.config.ts.timestamp-*.mjs
-vite.config.*.timestamp-*.mjs
-
-# Runtime state / sentinels
-.firestore_quota_exceeded
-
-# Test / coverage output
-coverage
-
-# Logs
-npm-debug.log
-yarn-debug.log*
-yarn-error.log*
-*.log
-
-# OS / editor
 .DS_Store
-.idea
-.vscode
-*.swp
+npm-debug.log

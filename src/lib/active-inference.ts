@@ -33,14 +33,20 @@ export class ActiveInferenceAgent {
     this.policyNet = new PolicyNetwork(stateDim, actionDim);
   }
 
-  async selectAction(state: number[]): Promise<RLDecision & { efe: number; confidence?: number }> {
+  async selectAction(state: number[]): Promise<RLDecision & { efe: number; confidence?: number; prunedAction?: number; efeBeforePruning?: number }> {
+    let decision: RLDecision & { efe: number; confidence?: number; prunedAction?: number; efeBeforePruning?: number } = {
+      type: 'action',
+      index: 0,
+      efe: 0
+    };
+
     if (this.policyNet && this.usePolicyNet) {
       const { action, confidence } = await this.policyNet.predict(state);
       if (confidence > 0.6) {
         // Record data for future training even if we use policy net (self-distillation)
         this.saveTrainingData(state, action);
         
-        const decision: RLDecision & { efe: number; confidence: number } = {
+        decision = {
           type: action < this.options.length ? 'option' : 'action',
           efe: 0,
           confidence
@@ -50,17 +56,72 @@ export class ActiveInferenceAgent {
         } else {
           decision.index = action;
         }
-        return decision;
+      } else {
+        decision = await this.plan(state);
+      }
+    } else {
+      decision = await this.plan(state);
+    }
+
+    // Perform Action Pruning based on Expected Free Energy (EFE) projection thresholds
+    if (decision.type === 'action' && decision.index !== undefined) {
+      const actionIndex = decision.index;
+      const { pruned, efe, threshold } = await this.shouldPruneAction(state, actionIndex);
+      decision.efe = efe;
+      
+      if (pruned) {
+        console.log(`[Active Inference Action Pruning] Action ${actionIndex} pruned. Projected EFE (${efe.toFixed(4)}) exceeded threshold (${threshold.toFixed(4)}). Falling back to IDLE.`);
+        decision.prunedAction = actionIndex;
+        decision.efeBeforePruning = efe;
+        decision.index = 0; // Fall back to IDLE (0)
       }
     }
 
-    const decision = await this.plan(state);
-    const actionIndex = decision.type === 'option' ? 
+    const finalActionIndex = decision.type === 'option' ? 
       this.options.findIndex(o => o.id === decision.optionId) : 
       decision.index!;
     
-    this.saveTrainingData(state, actionIndex);
+    this.saveTrainingData(state, finalActionIndex);
     return decision;
+  }
+
+  /**
+   * Evaluates if a proposed proactive action should be pruned based on its Expected Free Energy (EFE) projection.
+   * Proactive actions: CONSOLIDATE (2), NUDGE (3), CONSOLIDATE_CHATS (4), INSIGHT (5), HYBRID_SYNC_RAG (6).
+   */
+  public async shouldPruneAction(state: number[], actionIndex: number): Promise<{ pruned: boolean; efe: number; threshold: number }> {
+    // Non-proactive actions (IDLE, CHANGE_DEPTH) are never pruned
+    if (actionIndex < 2 || actionIndex > 6) {
+      return { pruned: false, efe: 0, threshold: Infinity };
+    }
+
+    const mu = this.prefManager.mu;
+    const invCovDiag = this.prefManager.invCovDiag;
+    
+    let efe = 0;
+    try {
+      efe = this.evaluateSequence(state, [actionIndex], mu, invCovDiag);
+    } catch (err) {
+      console.error('Error evaluating EFE sequence for pruning:', err);
+    } finally {
+      mu.dispose();
+      invCovDiag.dispose();
+    }
+
+    // Define standard EFE projection thresholds for proactive actions.
+    // Lower EFE is better. If predicted EFE exceeds these thresholds, the action is considered too risky/low-confidence.
+    const thresholds: Record<number, number> = {
+      2: 8.5,  // CONSOLIDATE (requires medium-high confidence/state alignment)
+      3: 5.0,  // NUDGE (needs high state alignment/low EFE to trigger proactively)
+      4: 9.0,  // CONSOLIDATE_CHATS (flexible threshold)
+      5: 12.0, // INSIGHT (creative/epistemic exploration can accept slightly higher EFE)
+      6: 7.0   // HYBRID_SYNC_RAG (highly synchronized alignment required)
+    };
+
+    const threshold = thresholds[actionIndex] ?? 10.0;
+    const pruned = efe > threshold;
+
+    return { pruned, efe, threshold };
   }
 
   private async saveTrainingData(state: number[], action: number) {
@@ -139,12 +200,12 @@ export class ActiveInferenceAgent {
   /**
    * Evaluates a sequence of actions using the World Model rollouts.
    */
-  private async evaluateSequence(
+  private evaluateSequence(
     state: number[],
     actionSeq: number[],
     mu: tf.Tensor1D,
     invCovDiag: tf.Tensor1D
-  ): Promise<number> {
+  ): number {
     return tf.tidy(() => {
       let totalEFE = 0;
       let currentHidden: tf.Tensor2D | undefined = undefined;
@@ -185,7 +246,7 @@ export class ActiveInferenceAgent {
 
     let seqCount = 0;
     for (const seq of sequences) {
-      const efe = await this.evaluateSequence(state, seq, mu, invCovDiag);
+      const efe = this.evaluateSequence(state, seq, mu, invCovDiag);
       if (efe < minEFE) {
         minEFE = efe;
         const bestAction = seq[0];

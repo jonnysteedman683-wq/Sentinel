@@ -164,7 +164,7 @@ export const SelfHealingErrorCard: React.FC<SelfHealingErrorCardProps> = ({
 
             {expanded && (
               <div className="mt-2.5 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                <div className="p-3 bg-black/60 rounded-xl border border-white/5 text-[11px] text-red-400/80 font-mono break-all leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
+                <div className="p-3 bg-black/60 rounded-xl border border-white/5 text-[11px] text-red-400/80 font-mono break-all leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto custom-scrollbar">
                   {errorMessage}
                 </div>
                 
