@@ -29,7 +29,6 @@
     "date-fns": "^4.4.0",
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
-    "elevenlabs": "^1.59.0",
     "express": "^5.2.1",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
