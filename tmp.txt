@@ -1,8 +1,0 @@
-  useEffect(() => {
-    if (!user) return;
-    const db = getFirestore();
-    const memQuery = query(collection(db, `users/${user.uid}/memories`), orderBy('lastAccessed', 'desc'));
-    const unsubMem = onSnapshot(memQuery, snap => {
-      setMemories(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as MemoryNode)));
-    });
-
