@@ -1693,7 +1693,7 @@ function MainApp() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [activeMessages]);
 
   const triggerSwayRNG = () => {
     if (isSpinning) return;
