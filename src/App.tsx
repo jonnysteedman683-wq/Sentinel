@@ -3513,7 +3513,7 @@ function MainApp() {
               <form onSubmit={handleSend} className={`relative flex items-end gap-2 border rounded-3xl p-3 transition-all duration-300 focus-within:border-indigo-500/60 focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:shadow-[0_0_40px_rgba(99,102,241,0.15)] ${
                 theme === 'dark' ? 'bg-[#0a0a0f] border-white/10' : 'bg-white border-black/10 shadow-sm'
               }`}>
-                <button type="button" onClick={toggleRecording} className={`p-3 rounded-full transition-colors ${isRecording ? 'text-red-500 animate-pulse bg-red-500/10' : (theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5')}`}>
+                <button type="button" className={`p-3 rounded-full transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5'}`}>
                   <Paperclip className="w-5 h-5" />
                 </button>
                 
@@ -3535,7 +3535,7 @@ function MainApp() {
                   rows={1}
                 />
                 
-                <button type="button" className={`p-3 rounded-full transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5'}`}>
+                <button type="button" onClick={toggleRecording} className={`p-3 rounded-full transition-colors ${isRecording ? 'text-red-500 animate-pulse bg-red-500/10' : (theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5')}`}>
                   <Mic className="w-5 h-5" />
                 </button>
                 
