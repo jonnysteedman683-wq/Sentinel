@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 import { ambientSynth } from './lib/audio-synth.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { PresenceOrb } from "./components/PresenceOrb.js";
@@ -3201,7 +3204,9 @@ function MainApp() {
                               )}
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap">{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</p>
+                            <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10 prose-pre:p-4 prose-pre:rounded-xl">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</ReactMarkdown>
+                            </div>
                           )}
                         </div>
                       )}
