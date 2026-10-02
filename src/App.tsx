@@ -14,6 +14,8 @@ import { QpuErdWidget } from './components/QpuErdWidget.js';
 import { SelfHealingErrorCard } from './components/SelfHealingErrorCard.js';
 import { ErrorProvider, useErrors } from './components/DiagnosticOverlay.js';
 import { LocalOnlyModeBanner } from './components/LocalOnlyModeBanner.js';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
@@ -3159,7 +3161,7 @@ function MainApp() {
                                 <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0 mt-1">
                                   <Cpu className="w-4 h-4 text-teal-400" />
                                 </div>
-                                <div className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                                <div className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'} w-full overflow-hidden`}>
                                   <TypewriterText 
                                     text={typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) || ''}
                                     isTyping={!!msg.isTyping}
@@ -3201,7 +3203,9 @@ function MainApp() {
                               )}
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap">{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</p>
+                            <div className="prose dark:prose-invert max-w-none">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</ReactMarkdown>
+                            </div>
                           )}
                         </div>
                       )}
