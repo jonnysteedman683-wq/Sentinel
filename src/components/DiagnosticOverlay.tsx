@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { AlertCircle, Terminal, X, ChevronRight, Activity, ShieldAlert, Cpu, Heart, CheckCircle2 } from 'lucide-react';
 import { AppError, parseAPIError } from '../lib/errors.js';
 import { ingestTelemetry } from '../lib/api.js';
@@ -43,7 +43,7 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
   const [isOverlayOpen, setOverlayOpen] = useState(false);
   const [metrics, setMetrics] = useState<SystemHealthMetrics | null>(null);
 
-  const addError = (errVal: unknown) => {
+  const addError = useCallback((errVal: unknown) => {
     const parsed = parseAPIError(errVal);
     const newErr: DiagnosticError = {
       id: `err-${Math.random().toString(36).substring(2, 9)}`,
@@ -67,19 +67,19 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
         },
       }).catch(() => {});
     }
-  };
+  }, []);
 
-  const resolveError = (id: string) => {
+  const resolveError = useCallback((id: string) => {
     setErrors((prev) =>
       prev.map((e) => (e.id === id ? { ...e, resolved: true } : e))
     );
-  };
+  }, []);
 
-  const clearAllErrors = () => {
+  const clearAllErrors = useCallback(() => {
     setErrors([]);
-  };
+  }, []);
 
-  const refreshMetrics = async () => {
+  const refreshMetrics = useCallback(async () => {
     try {
       const res = await fetch('/api/system/health');
       if (res.ok) {
@@ -89,7 +89,7 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Failed to fetch backend system health metrics:', e);
     }
-  };
+  }, []);
 
   // Listen to unhandled window errors and promise rejections globally
   useEffect(() => {
@@ -115,21 +115,21 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('unhandledrejection', handleRejectionEvent);
       clearInterval(interval);
     };
-  }, []);
+  }, [addError, refreshMetrics]);
+
+  const contextValue = useMemo(() => ({
+    errors,
+    isOverlayOpen,
+    metrics,
+    addError,
+    resolveError,
+    clearAllErrors,
+    setOverlayOpen,
+    refreshMetrics,
+  }), [errors, isOverlayOpen, metrics, addError, resolveError, clearAllErrors, refreshMetrics]);
 
   return (
-    <ErrorContext.Provider
-      value={{
-        errors,
-        isOverlayOpen,
-        metrics,
-        addError,
-        resolveError,
-        clearAllErrors,
-        setOverlayOpen,
-        refreshMetrics,
-      }}
-    >
+    <ErrorContext.Provider value={contextValue}>
       {children}
       <DiagnosticOverlay />
     </ErrorContext.Provider>
@@ -220,7 +220,7 @@ export function DiagnosticOverlay() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {activeTab === 'errors' ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-[10px] text-slate-500">

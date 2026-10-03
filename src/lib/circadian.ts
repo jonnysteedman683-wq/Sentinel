@@ -20,7 +20,31 @@ export async function updateCircadianModel(userId: string) {
 }
 
 function fitFourierSimple(_snapshots: EmotionSnapshot[]) {
-  // Return dummy coeffs for now
-  const valenceCoeffs = [0, 0, 0, 0, 0];
-  return { valenceCoeffs, arousalCoeffs: valenceCoeffs, dominanceCoeffs: valenceCoeffs };
+  // Generate dynamic dummy coeffs based on time of day until we have enough real user data
+  // These simulate a typical human circadian rhythm (higher arousal midday, lower at night)
+  const hour = new Date().getHours();
+  const timeFactor = (hour / 24.0) * 2 * Math.PI; // 0 to 2pi
+  
+  // Base term, cos(t), sin(t), cos(2t), sin(2t)
+  const valenceCoeffs = [
+    0.5, // Base valence
+    Math.cos(timeFactor) * 0.2,
+    Math.sin(timeFactor) * 0.1,
+    0, 0
+  ];
+  
+  const arousalCoeffs = [
+    0.5, // Base arousal
+    -Math.cos(timeFactor) * 0.4, // lower at night (hour 0/24), higher midday (hour 12)
+    Math.sin(timeFactor) * 0.2,
+    0, 0
+  ];
+
+  const dominanceCoeffs = [
+    0.6,
+    Math.cos(timeFactor) * 0.1,
+    0, 0, 0
+  ];
+
+  return { valenceCoeffs, arousalCoeffs, dominanceCoeffs };
 }

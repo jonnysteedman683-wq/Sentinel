@@ -1,5 +1,5 @@
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { initializeFirestore, getFirestore as firebaseGetFirestore } from "firebase/firestore";
+import { initializeApp } from "firebase/app";
+import { initializeFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import firebaseConfig from "../firebase-applet-config.json" with { type: "json" };
 
@@ -7,30 +7,11 @@ if (!firebaseConfig || !firebaseConfig.apiKey) {
   console.error("[Firebase] Critical: firebase-applet-config.json is missing or invalid. Deployment will be degraded.");
 }
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 console.log("[Firebase Client] Initializing DB with ID:", (firebaseConfig as any).firestoreDatabaseId);
-
-let db: any;
-try {
-  const dbId = (firebaseConfig as any)?.firestoreDatabaseId;
-  if (dbId && dbId !== "(default)") {
-    console.log("[Firebase Client] Initializing with specific DB ID:", dbId);
-    db = firebaseGetFirestore(app, dbId);
-  } else {
-    db = firebaseGetFirestore(app);
-  }
-} catch (e) {
-  console.warn("[Firebase Client] Failed to get specific Firestore database, attempting initializeFirestore:", e);
-  try {
-    const dbId = (firebaseConfig as any)?.firestoreDatabaseId;
-    db = dbId && dbId !== "(default)" 
-      ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
-      : initializeFirestore(app, { experimentalForceLongPolling: true });
-  } catch (err) {
-    const dbId = (firebaseConfig as any)?.firestoreDatabaseId;
-    db = dbId && dbId !== "(default)" ? firebaseGetFirestore(app, dbId) : firebaseGetFirestore(app);
-  }
-}
+const db = (firebaseConfig as any).firestoreDatabaseId 
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, (firebaseConfig as any).firestoreDatabaseId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/tasks');
@@ -87,11 +68,8 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const isNotFound = errorMessage.includes("NOT_FOUND") || errorMessage.includes("code: 5") || errorMessage.includes("Code: 5");
-  
   const errInfo: FirestoreErrorInfo = {
-    error: isNotFound ? `${errorMessage} (PROVISIONING_REQUIRED: The Firestore database instance might not be provisioned yet.)` : errorMessage,
+    error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -106,12 +84,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  
-  if (isNotFound) {
-    console.warn('[Firebase] Database NOT_FOUND. Please ensure you have provisioned the Firestore database in the Firebase Console.');
-    setQuotaExceeded(true); // Trigger local mode fallback if available
-  }
-  
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
@@ -155,39 +127,22 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
-export const anonymousSignIn = async (): Promise<{ user: any } | null> => {
+export const anonymousSignIn = async (): Promise<{ user: User } | null> => {
   try {
     const result = await signInAnonymously(auth);
     return { user: result.user };
   } catch (error: any) {
-    console.warn('[Firebase Auth Fallback] Anonymous sign in failed. This usually means "Anonymous" authentication is not enabled in your Firebase Console (Build > Authentication > Sign-in method). Falling back to offline local sandbox user.', error);
-    if (error.message?.includes("auth/admin-restricted-operation")) {
-      console.error("ACTION REQUIRED: Enable Anonymous Authentication in the Firebase Console to allow cloud-synced sessions.");
-    }
-    
-    const fallbackUser = {
-      uid: "sandbox-local-user",
-      email: "sandbox@arcane.local",
-      displayName: "Arcane Wanderer (Offline)",
-      isAnonymous: true,
-      emailVerified: false,
-      providerData: [],
-      getIdToken: async () => "mock-token",
-    };
-    
-    // Proactively switch to offline fallback mode so we don't attempt to hit the database
-    setQuotaExceeded(true);
-    return { user: fallbackUser };
+    console.error('Anonymous sign in error:', error);
+    throw error;
   }
 };
 
 // --- Firestore Offline / Quota Fallback Shim System ---
-export let isQuotaExceeded = false;
+export let isQuotaExceeded = true;
 try {
-  isQuotaExceeded = localStorage.getItem("firestore_quota_exceeded") === "true";
-  if (isQuotaExceeded) {
-    console.warn("[Firestore Quota Fallback] Proactively loaded quota-exceeded status. Operating in offline storage mode.");
-  }
+  // Always force offline mode since we removed Firebase Auth completely
+  isQuotaExceeded = true;
+  console.warn("[Firestore Quota Fallback] Operating in offline storage mode.");
 } catch (e) {
   // Local storage disabled or missing
 }
@@ -212,22 +167,7 @@ function isQuotaError(error: any): boolean {
     msg.includes("quota") ||
     msg.includes("resource-exhausted") ||
     msg.includes("resource_exhausted") ||
-    msg.includes("limit exceeded") ||
-    // Database not found / connection / path errors (e.g. Code: 5 NOT_FOUND)
-    code.includes("not-found") ||
-    code.includes("not_found") ||
-    msg.includes("not_found") ||
-    msg.includes("not-found") ||
-    msg.includes("database-not-found") ||
-    msg.includes("database_not_found") ||
-    msg.includes("code: 5") ||
-    // Permission / authentication rules issues in Firestore
-    code.includes("permission-denied") ||
-    msg.includes("permission-denied") ||
-    msg.includes("insufficient permissions") ||
-    // General connection/grpc offline issues
-    msg.includes("grpcconnection rpc 'write'") ||
-    msg.includes("grpc")
+    msg.includes("limit exceeded")
   );
 }
 
@@ -295,8 +235,7 @@ export function notifyOfflineListeners(path: string) {
   const cleanPath = path.replace(/\//g, "_");
   const listeners = offlineListeners.get(cleanPath);
   if (listeners) {
-    const isDoc = path.split("/").length % 2 === 0;
-    const snap = isDoc ? handleOfflineGet(path) : handleOfflineGetDocs(path);
+    const snap = handleOfflineGetDocs(path);
     listeners.forEach(cb => {
       try {
         cb(snap);
@@ -364,7 +303,6 @@ function handleOfflineSet(path: string, data: any, options?: any) {
   }
   saveOfflineData(collectionPath, offlineList);
   notifyOfflineListeners(collectionRawPath);
-  notifyOfflineListeners(path);
 }
 
 export async function setDoc(reference: any, data: any, options?: any) {
@@ -505,7 +443,6 @@ export async function getDocs(qOrRef: any) {
 export function onSnapshot(qOrRef: any, onNext: (snapshot: any) => void, onError?: (error: any) => void) {
   const path = qOrRef?.__path || qOrRef?.path || "";
   const cleanPath = path.replace(/\//g, "_");
-  const isDoc = qOrRef?.type === 'document' || (path && path.split("/").length % 2 === 0);
   
   let isUsingOffline = isQuotaExceeded;
   let realUnsubscribe: (() => void) | null = null;
@@ -518,7 +455,7 @@ export function onSnapshot(qOrRef: any, onNext: (snapshot: any) => void, onError
       realUnsubscribe = null;
     }
     setTimeout(() => {
-      onNext(isDoc ? handleOfflineGet(path) : handleOfflineGetDocs(path));
+      onNext(handleOfflineGetDocs(path));
     }, 0);
     offlineUnsubscribe = registerOfflineListener(path, onNext);
   }
@@ -527,73 +464,50 @@ export function onSnapshot(qOrRef: any, onNext: (snapshot: any) => void, onError
     try {
       realUnsubscribe = realOnSnapshot(qOrRef, 
         (snapshot: any) => {
-          if (isDoc) {
-            try {
-              if (snapshot.exists()) {
-                const docData = snapshot.data();
-                const parts = path.split("/");
-                const docId = parts[parts.length - 1];
-                const collectionPath = parts.slice(0, -1).join("_");
-                const offlineList = getOfflineData(collectionPath);
-                const existingIdx = offlineList.findIndex((item: any) => item.id === docId);
-                const updatedDoc = { ...docData, id: docId };
-                if (existingIdx >= 0) {
-                  offlineList[existingIdx] = updatedDoc;
-                } else {
-                  offlineList.push(updatedDoc);
-                }
-                saveOfflineData(collectionPath, offlineList);
-              }
-            } catch (e) {
-              console.error("[Firestore Fallback] Failed to cache document snapshot for path:", path, e);
+          try {
+            const list: any[] = [];
+            snapshot.forEach((doc: any) => {
+              list.push({ ...doc.data(), id: doc.id });
+            });
+            if (list.length > 0) {
+              saveOfflineData(cleanPath, list);
             }
-            onNext(snapshot);
+          } catch (e) {
+            console.error("[Firestore Fallback] Failed to cache snapshot for path:", path, e);
+          }
+          
+          const offlineList = getOfflineData(cleanPath);
+          const onlineIds = new Set(snapshot.docs.map((d: any) => d.id));
+          const offlineOnly = offlineList.filter((item: any) => !onlineIds.has(item.id));
+          
+          if (offlineOnly.length > 0) {
+            const mergedDocs = [
+              ...snapshot.docs.map((d: any) => ({
+                id: d.id,
+                exists: () => true,
+                data: () => d.data(),
+                ref: d.ref
+              })),
+              ...offlineOnly.map((item: any) => ({
+                id: item.id,
+                exists: () => true,
+                data: () => item,
+                get ref() {
+                  return doc(db, path, item.id);
+                }
+              }))
+            ];
+            
+            onNext({
+              empty: mergedDocs.length === 0,
+              size: mergedDocs.length,
+              docs: mergedDocs,
+              forEach: (callback: (doc: any) => void) => {
+                mergedDocs.forEach(callback);
+              }
+            });
           } else {
-            try {
-              const list: any[] = [];
-              snapshot.forEach((doc: any) => {
-                list.push({ ...doc.data(), id: doc.id });
-              });
-              if (list.length > 0) {
-                saveOfflineData(cleanPath, list);
-              }
-            } catch (e) {
-              console.error("[Firestore Fallback] Failed to cache snapshot for path:", path, e);
-            }
-            
-            const offlineList = getOfflineData(cleanPath);
-            const onlineIds = new Set(snapshot.docs.map((d: any) => d.id));
-            const offlineOnly = offlineList.filter((item: any) => !onlineIds.has(item.id));
-            
-            if (offlineOnly.length > 0) {
-              const mergedDocs = [
-                ...snapshot.docs.map((d: any) => ({
-                  id: d.id,
-                  exists: () => true,
-                  data: () => d.data(),
-                  ref: d.ref
-                })),
-                ...offlineOnly.map((item: any) => ({
-                  id: item.id,
-                  exists: () => true,
-                  data: () => item,
-                  get ref() {
-                    return doc(db, path, item.id);
-                  }
-                }))
-              ];
-              
-              onNext({
-                empty: mergedDocs.length === 0,
-                size: mergedDocs.length,
-                docs: mergedDocs,
-                forEach: (callback: (doc: any) => void) => {
-                  mergedDocs.forEach(callback);
-                }
-              });
-            } else {
-              onNext(snapshot);
-            }
+            onNext(snapshot);
           }
         },
         (error: any) => {

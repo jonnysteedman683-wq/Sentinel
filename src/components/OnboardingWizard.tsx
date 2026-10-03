@@ -28,9 +28,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+          className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-3 sm:mx-auto"
         >
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             <div className="flex justify-between items-center mb-8">
               <div className="flex space-x-2">
                 {[...Array(totalSteps)].map((_, i) => (
