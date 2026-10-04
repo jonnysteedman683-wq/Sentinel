@@ -1,20 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComplete: () => void }> = ({ text = '', isTyping, onComplete }) => {
+export const TypewriterText: React.FC<{
+  text?: string;
+  isTyping: boolean;
+  onComplete: () => void;
+}> = ({ text = '', isTyping, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
-  
+
   useEffect(() => {
     const safeText = text || '';
     if (!isTyping) {
       setDisplayedText(safeText);
       return;
     }
-    
+
     let index = 0;
     setDisplayedText('');
     const interval = setInterval(() => {
@@ -26,14 +33,15 @@ export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComp
         onCompleteRef.current();
       }
     }, 15);
-    
+
     return () => clearInterval(interval);
   }, [text, isTyping]);
-  
+
   return (
-    <span>
-      {displayedText}
-      {isTyping && <span className="inline-block w-2 h-4 ml-1 bg-teal-400 animate-pulse align-middle" />}
-    </span>
+    <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {displayedText + (isTyping ? '▋' : '')}
+      </ReactMarkdown>
+    </div>
   );
 };
