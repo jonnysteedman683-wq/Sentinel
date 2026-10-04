@@ -1,4 +1,6 @@
 import { Brain, Cpu, Mic, Network, Paperclip, Send, Sliders, Split, Zap } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { lazy, Suspense } from 'react';
 import { addDoc, collection, deleteDoc, doc } from '../../firebase.js';
 import {
@@ -255,11 +257,11 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/20 prose-pre:border prose-pre:border-black/10 prose-pre:rounded-xl whitespace-pre-wrap">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
+                            </ReactMarkdown>
+                          </div>
                         )}
                       </div>
                     )}
