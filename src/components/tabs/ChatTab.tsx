@@ -38,7 +38,6 @@ export interface ChatTabProps {
 export function ChatTab(props: ChatTabProps) {
   const {
     chatLayout,
-    setChatLayout,
     messages,
     setMessages,
     modelState,
