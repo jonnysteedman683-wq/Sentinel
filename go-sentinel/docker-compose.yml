@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  decision-service:
+    build: .
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    volumes:
+      - .:/app
+  cold-plane-stub:
+    build: .
+    command: go run cmd/cold-plane-stub/main.go
+    volumes:
+      - .:/app
