@@ -16,6 +16,8 @@ import { ReasoningTree } from '../ReasoningTree.js';
 import { SelfHealingErrorCard } from '../SelfHealingErrorCard.js';
 import { SubagentDebateArena } from '../SubagentDebateArena.js';
 import { TypewriterText } from '../TypewriterText.js';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
 
@@ -159,21 +161,31 @@ export function ChatTab(props: ChatTabProps) {
                               <div
                                 className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}
                               >
-                                <TypewriterText
-                                  text={
-                                    typeof msg.content === 'string'
-                                      ? msg.content
-                                      : JSON.stringify(msg.content) || ''
-                                  }
-                                  isTyping={!!msg.isTyping}
-                                  onComplete={() => {
-                                    setMessages((prev: any) =>
-                                      prev.map((m: any) =>
-                                        m.id === msg.id ? { ...m, isTyping: false } : m,
-                                      ),
-                                    );
-                                  }}
-                                />
+                                {msg.isTyping ? (
+                                  <TypewriterText
+                                    text={
+                                      typeof msg.content === 'string'
+                                        ? msg.content
+                                        : JSON.stringify(msg.content) || ''
+                                    }
+                                    isTyping={!!msg.isTyping}
+                                    onComplete={() => {
+                                      setMessages((prev: any) =>
+                                        prev.map((m: any) =>
+                                          m.id === msg.id ? { ...m, isTyping: false } : m,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                ) : (
+                                  <div className={`prose ${theme === 'dark' ? 'prose-invert' : ''} max-w-none`}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {typeof msg.content === 'string'
+                                        ? msg.content
+                                        : JSON.stringify(msg.content) || ''}
+                                    </ReactMarkdown>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             {msg.superpositionBranches && msg.superpositionBranches.length > 0 && (
@@ -255,11 +267,13 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <div className={`prose ${theme === 'dark' ? 'prose-invert' : ''} max-w-none`}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)}
+                            </ReactMarkdown>
+                          </div>
                         )}
                       </div>
                     )}
