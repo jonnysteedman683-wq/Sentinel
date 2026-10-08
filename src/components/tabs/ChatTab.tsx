@@ -1,5 +1,7 @@
 import { Brain, Cpu, Mic, Network, Paperclip, Send, Sliders, Split, Zap } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { addDoc, collection, deleteDoc, doc } from '../../firebase.js';
 import {
   DiagnosticWidget,
@@ -36,7 +38,6 @@ export interface ChatTabProps {
 export function ChatTab(props: ChatTabProps) {
   const {
     chatLayout,
-    setChatLayout,
     messages,
     setMessages,
     modelState,
@@ -159,21 +160,33 @@ export function ChatTab(props: ChatTabProps) {
                               <div
                                 className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}
                               >
-                                <TypewriterText
-                                  text={
-                                    typeof msg.content === 'string'
-                                      ? msg.content
-                                      : JSON.stringify(msg.content) || ''
-                                  }
-                                  isTyping={!!msg.isTyping}
-                                  onComplete={() => {
-                                    setMessages((prev: any) =>
-                                      prev.map((m: any) =>
-                                        m.id === msg.id ? { ...m, isTyping: false } : m,
-                                      ),
-                                    );
-                                  }}
-                                />
+                                {msg.isTyping ? (
+                                  <TypewriterText
+                                    text={
+                                      typeof msg.content === 'string'
+                                        ? msg.content
+                                        : JSON.stringify(msg.content) || ''
+                                    }
+                                    isTyping={!!msg.isTyping}
+                                    onComplete={() => {
+                                      setMessages((prev: any) =>
+                                        prev.map((m: any) =>
+                                          m.id === msg.id ? { ...m, isTyping: false } : m,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className={`prose ${theme === 'dark' ? 'prose-invert' : ''} max-w-none`}
+                                  >
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {typeof msg.content === 'string'
+                                        ? msg.content
+                                        : JSON.stringify(msg.content) || ''}
+                                    </ReactMarkdown>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             {msg.superpositionBranches && msg.superpositionBranches.length > 0 && (
@@ -255,11 +268,15 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <div
+                            className={`prose ${theme === 'dark' ? 'prose-invert' : ''} max-w-none`}
+                          >
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)}
+                            </ReactMarkdown>
+                          </div>
                         )}
                       </div>
                     )}
