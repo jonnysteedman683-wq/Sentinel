@@ -1,22 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComplete: () => void }> = ({ text = '', isTyping, onComplete }) => {
+export const TypewriterText: React.FC<{
+  text?: string;
+  isTyping: boolean;
+  onComplete: () => void;
+}> = ({ text = '', isTyping, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
-  
+
   useEffect(() => {
     const safeText = text || '';
     if (!isTyping) {
       setDisplayedText(safeText);
       return;
     }
-    
+
     let index = 0;
     setDisplayedText('');
     const interval = setInterval(() => {
@@ -28,10 +33,10 @@ export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComp
         onCompleteRef.current();
       }
     }, 15);
-    
+
     return () => clearInterval(interval);
   }, [text, isTyping]);
-  
+
   return (
     <div className="w-full prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-lg">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>

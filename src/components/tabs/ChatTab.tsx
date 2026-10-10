@@ -1,5 +1,7 @@
 import { Brain, Cpu, Mic, Network, Paperclip, Send, Sliders, Split, Zap } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { addDoc, collection, deleteDoc, doc } from '../../firebase.js';
 import {
   DiagnosticWidget,
@@ -9,8 +11,6 @@ import {
   VitalsWidget,
 } from '../CommandWidgets.js';
 import InsightFeed from '../InsightFeed.js';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import InsightReveal from '../InsightReveal.js';
 import { PresenceOrb } from '../PresenceOrb.js';
 import { QpuErdWidget } from '../QpuErdWidget.js';
@@ -38,7 +38,6 @@ export interface ChatTabProps {
 export function ChatTab(props: ChatTabProps) {
   const {
     chatLayout,
-    setChatLayout,
     messages,
     setMessages,
     modelState,
