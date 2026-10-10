@@ -9,6 +9,8 @@ import {
   VitalsWidget,
 } from '../CommandWidgets.js';
 import InsightFeed from '../InsightFeed.js';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import InsightReveal from '../InsightReveal.js';
 import { PresenceOrb } from '../PresenceOrb.js';
 import { QpuErdWidget } from '../QpuErdWidget.js';
@@ -255,11 +257,13 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <div className="w-full prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-lg">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)}
+                            </ReactMarkdown>
+                          </div>
                         )}
                       </div>
                     )}
