@@ -90,6 +90,7 @@ jobs:
   go-test:
     name: Go Test (decision service)
     runs-on: ubuntu-latest
+    if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
