@@ -16,6 +16,8 @@ import { ReasoningTree } from '../ReasoningTree.js';
 import { SelfHealingErrorCard } from '../SelfHealingErrorCard.js';
 import { SubagentDebateArena } from '../SubagentDebateArena.js';
 import { TypewriterText } from '../TypewriterText.js';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
 
@@ -255,11 +257,13 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <div className="prose prose-invert max-w-none prose-sm sm:prose-base prose-slate">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)}
+                            </ReactMarkdown>
+                          </div>
                         )}
                       </div>
                     )}
