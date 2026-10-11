@@ -1,5 +1,7 @@
 import { Brain, Cpu, Mic, Network, Paperclip, Send, Sliders, Split, Zap } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { addDoc, collection, deleteDoc, doc } from '../../firebase.js';
 import {
   DiagnosticWidget,
@@ -16,8 +18,6 @@ import { ReasoningTree } from '../ReasoningTree.js';
 import { SelfHealingErrorCard } from '../SelfHealingErrorCard.js';
 import { SubagentDebateArena } from '../SubagentDebateArena.js';
 import { TypewriterText } from '../TypewriterText.js';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
 
@@ -38,7 +38,6 @@ export interface ChatTabProps {
 export function ChatTab(props: ChatTabProps) {
   const {
     chatLayout,
-    setChatLayout,
     messages,
     setMessages,
     modelState,
