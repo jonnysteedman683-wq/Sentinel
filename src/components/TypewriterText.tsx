@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComplete: () => void }> = ({ text = '', isTyping, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -31,9 +33,11 @@ export const TypewriterText: React.FC<{ text?: string; isTyping: boolean; onComp
   }, [text, isTyping]);
   
   return (
-    <span>
-      {displayedText}
+    <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {displayedText}
+      </ReactMarkdown>
       {isTyping && <span className="inline-block w-2 h-4 ml-1 bg-teal-400 animate-pulse align-middle" />}
-    </span>
+    </div>
   );
 };
