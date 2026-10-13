@@ -542,7 +542,7 @@ function applyResilience(app: express.Application) {
   const app = express();
   applyResilience(app);
   await loadInteractionLogs();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
 
   // Debugging Infrastructure & Request ID
@@ -3407,6 +3407,12 @@ Provide a final, highly structured, comprehensive answer.`;
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
+  // 404 handler for unmatched /api endpoints (must be before Vite/SPA fallback)
+  app.use("/api", (req, res) => {
+    console.error(`[404 Fallback] Unmatched API Route: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+  });
+
   const isProd = process.env.NODE_ENV === "production" || fs.existsSync(path.join(process.cwd(), "dist/index.html"));
   if (!isProd) {
     try {
@@ -3428,13 +3434,6 @@ Provide a final, highly structured, comprehensive answer.`;
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-  app.use((req, res, next) => {
-    if (req.url.startsWith("/api/")) {
-      console.error(`[404 Fallback] Unmatched API Route: ${req.method} ${req.url}`);
-      return res.status(404).json({ error: "Route not found: " + req.method + " " + req.url });
-    }
-    next();
-  });
 
   // Centralized Error-Handling Middleware
   app.use((err: any, req: any, res: any, _next: any) => {
