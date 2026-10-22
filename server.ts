@@ -28,6 +28,7 @@ import ivm from "isolated-vm";
 import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction } from "./src/lib/ai-service.js";
 import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
+import { authenticateRequest } from "./src/lib/auth.js";
 
 
 const executeCodeInternal = async (code: string) => {
@@ -544,6 +545,9 @@ function applyResilience(app: express.Application) {
   await loadInteractionLogs();
   const PORT = Number(process.env.PORT) || 3000;
 
+
+  // Verify the caller's Firebase ID token before anything reads identity.
+  app.use(authenticateRequest());
 
   // Debugging Infrastructure & Request ID
   app.use((req: any, _res, next) => {
@@ -1477,7 +1481,10 @@ Respond with the narrative text only.`;
     }
   });
 
-  app.post("/api/system/execute-healing", express.json(), async (req, res) => {
+  app.post("/api/system/execute-healing", express.json(), async (req: any, res) => {
+    if (!req.user?.uid) {
+      return res.status(401).json({ error: "Sign in required to run maintenance actions" });
+    }
     const { actionType } = req.body;
     if (!actionType) {
       return res.status(400).json({ error: "Missing actionType parameter" });
@@ -2404,26 +2411,10 @@ Output ONLY a valid JSON array of strings, where each string is a distinct idea.
 
   // --- Reinforcement Learning Memory Nudge Endpoints ---
 
-  const getUidFromRequest = (req: any): string => {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split('Bearer ')[1];
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          while (base64.length % 4) {
-            base64 += '=';
-          }
-          const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
-          return payload.uid || payload.user_id || req.body?.uid || req.query?.uid || "";
-        }
-      } catch (err) {
-        console.error("Failed to decode token payload:", err);
-      }
-    }
-    return req.body?.uid || req.query?.uid || "";
-  };
+  // Identity comes only from a verified Firebase ID token (see src/lib/auth.ts).
+  // The previous version decoded the JWT without checking its signature and fell
+  // back to req.body.uid / req.query.uid, so any caller could act as any user.
+  const getUidFromRequest = (req: any): string => req.user?.uid || "";
 
   const handleNudgeMemory = async (req: any, res: any) => {
     try {
