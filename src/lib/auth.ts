@@ -8,24 +8,25 @@
  * Verification uses firebase-admin with only the project ID. It checks the token
  * against Google's public signing keys, so no service-account key is needed.
  */
-import fs from "fs";
-import path from "path";
-import { getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { type App, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 export type TokenVerifier = (idToken: string) => Promise<{ uid: string }>;
 
-const APP_NAME = "sentinel-auth";
+const APP_NAME = 'sentinel-auth';
 let verifierOverride: TokenVerifier | null = null;
 let cachedVerifier: TokenVerifier | null = null;
 
 export function resolveProjectId(): string | undefined {
   const fromEnv = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  if (fromEnv?.trim()) return fromEnv.trim();
   try {
-    const raw = fs.readFileSync(path.join(process.cwd(), "firebase-applet-config.json"), "utf8");
+    const raw = fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8');
     const projectId = JSON.parse(raw)?.projectId;
-    return typeof projectId === "string" && projectId ? projectId : undefined;
+    return typeof projectId === 'string' && projectId ? projectId : undefined;
   } catch {
     return undefined;
   }
@@ -51,7 +52,7 @@ export function setTokenVerifierForTests(verifier: TokenVerifier | null): void {
 }
 
 export function extractBearerToken(header: unknown): string | null {
-  if (typeof header !== "string") return null;
+  if (typeof header !== 'string') return null;
   const match = /^Bearer\s+(\S+)\s*$/i.exec(header);
   return match ? match[1] : null;
 }
@@ -67,7 +68,7 @@ export async function verifyAuthorizationHeader(header: unknown): Promise<string
   if (!verifier) return null; // fail closed: no project ID, no identity
   try {
     const { uid } = await verifier(token);
-    return typeof uid === "string" && uid ? uid : null;
+    return typeof uid === 'string' && uid ? uid : null;
   } catch {
     return null;
   }
