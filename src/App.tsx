@@ -335,23 +335,25 @@ function MainApp() {
   const [slmProgress, setSlmProgress] = useState<any>(null);
 
   useEffect(() => {
-    mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), { type: 'module' });
+    if (typeof Worker !== 'undefined') {
+      mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), { type: 'module' });
 
-    slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), { type: 'module' });
-    slmWorkerRef.current.addEventListener('message', (e) => {
-        if (e.data.type === 'loaded') {
-            setSlmLoaded(true);
-        } else if (e.data.type === 'progress') {
-            setSlmProgress(e.data.progress);
-        } else if (e.data.type === 'complete' && e.data.id && e.data.id.startsWith('intrusive_')) {
-            // Add intrusive thought as a system log or minor message
-            const thought = e.data.result;
-            if (thought) {
-              setMessages(prev => [...prev, { id: e.data.id, role: 'ai', content: '', selfAnalysis: `[SLM System 1 Insight] ${thought}` }]);
-            }
-        }
-    });
-    slmWorkerRef.current.postMessage({ action: 'load' });
+      slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), { type: 'module' });
+      slmWorkerRef.current.addEventListener('message', (e) => {
+          if (e.data.type === 'loaded') {
+              setSlmLoaded(true);
+          } else if (e.data.type === 'progress') {
+              setSlmProgress(e.data.progress);
+          } else if (e.data.type === 'complete' && e.data.id && e.data.id.startsWith('intrusive_')) {
+              // Add intrusive thought as a system log or minor message
+              const thought = e.data.result;
+              if (thought) {
+                setMessages(prev => [...prev, { id: e.data.id, role: 'ai', content: '', selfAnalysis: `[SLM System 1 Insight] ${thought}` }]);
+              }
+          }
+      });
+      slmWorkerRef.current.postMessage({ action: 'load' });
+    }
 
     return () => {
       if (mlWorkerRef.current) mlWorkerRef.current.terminate();

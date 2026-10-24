@@ -54,7 +54,7 @@ describe('Arcane Quantum Brain - Main Application', () => {
     });
   });
 
-  it('hides onboarding wizard if previously completed', () => {
+  it('hides onboarding wizard if previously completed', async () => {
     localStorage.setItem('onboardingComplete', 'true');
     render(<App />);
     
@@ -66,6 +66,8 @@ describe('Arcane Quantum Brain - Main Application', () => {
     expect(screen.queryByText('Welcome to Arcane Quantum Brain')).not.toBeInTheDocument();
     
     // Instead we should see the main dashboard elements
-    expect(screen.getByText('AQB')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('AQB')).toBeInTheDocument();
+    });
   });
 });
