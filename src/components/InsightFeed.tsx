@@ -10,7 +10,7 @@ interface SavedInsight {
   successScore?: number;
 }
 
-export default function InsightFeed({ onReward }: { onReward?: (reward: number) => void }) {
+export default function InsightFeed({ onReward }: { onReward?: (reward: number, id?: string) => void }) {
   const [insights, setInsights] = useState<SavedInsight[]>([]);
   const [open, setOpen] = useState(false);
 

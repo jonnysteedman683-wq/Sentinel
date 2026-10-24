@@ -247,13 +247,34 @@ export class CuriousAgent {
     await this.train();
   }
 
+  registerDelayedTrajectory(
+    id: string,
+    stateBefore: number[],
+    action: number,
+    stateAfter: number[],
+    type: string
+  ) {
+    // Store trajectory for delayed reward processing
+  }
+
+  async applyDelayedReward(id: string, reward: string | number) {
+    const r = this.mapReward(reward);
+    this.remember(this.lastState, AgentAction.INSIGHT, r, this.currentState);
+    await this.train();
+  }
+
+  async getQValues(state: number[]): Promise<number[]> {
+    const q_values = this.q_online.forward([state]);
+    return q_values[0] || new Array(this.n_actions).fill(0);
+  }
+
   async applyInsightReward(reward: string | number) {
     const r = this.mapReward(reward);
     this.remember(this.lastState, AgentAction.INSIGHT, r, this.currentState);
     await this.train();
   }
 
-  async applyDelayedInsightReward(reward: string | number) {
+  async applyDelayedInsightReward(reward: string | number, _id?: string) {
     await this.applyInsightReward(reward);
   }
 
