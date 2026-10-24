@@ -50,11 +50,13 @@ export class AmbientSynthesizer {
     lfoGain.gain.value = 0.2;
     this.lfo.connect(lfoGain);
 
-    this.gainNodes.forEach(g => {
+    this.gainNodes.forEach((g) => {
       lfoGain.connect(g.gain);
     });
 
-    this.oscillators.forEach(o => o.start());
+    this.oscillators.forEach((o) => {
+      o.start();
+    });
     this.lfo.start();
   }
 
@@ -89,7 +91,7 @@ export class AmbientSynthesizer {
     // 1. If converged -> deep alpha wave (binaural beat ~10Hz diff, base ~85Hz)
     // 2. If anomaly -> dissonant chords, higher freq
 
-    const targetBase = 85 + (anomalyScore * 150); // Shifts base freq up during high anomaly
+    const targetBase = 85 + anomalyScore * 150; // Shifts base freq up during high anomaly
     this.baseFreq = targetBase;
 
     // Ratios transition from consonant (major/perfect) to dissonant
@@ -102,8 +104,8 @@ export class AmbientSynthesizer {
       // If highly converged, make it a binaural beat (slight freq offset)
       let freq = this.baseFreq * currentRatio;
       if (convergence > 0.8 && i === 1) {
-         // Create alpha wave binaural beat (~8-12Hz difference)
-         freq = (this.baseFreq * consonant[0]) + 10;
+        // Create alpha wave binaural beat (~8-12Hz difference)
+        freq = this.baseFreq * consonant[0] + 10;
       }
 
       osc.frequency.setTargetAtTime(freq, now, 1.0);
@@ -111,7 +113,7 @@ export class AmbientSynthesizer {
 
     // Tempo increases with anomaly
     if (this.lfo) {
-      const targetLfoRate = 0.1 + (anomalyScore * 4.0); // 0.1Hz to 4.1Hz
+      const targetLfoRate = 0.1 + anomalyScore * 4.0; // 0.1Hz to 4.1Hz
       this.lfo.frequency.setTargetAtTime(targetLfoRate, now, 1.0);
     }
   }

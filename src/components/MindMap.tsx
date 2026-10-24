@@ -9,6 +9,8 @@ import KnowledgeGraphPanel from './KnowledgeGraphPanel.js';
 interface MindMapProps {
   memories: any[];
   theme?: 'dark' | 'light';
+  sparks?: any[];
+  onBindSpark?: (spark: any) => Promise<void>;
   onCollapseWavefunction?: (id: string) => void;
 }
 

@@ -1,7 +1,7 @@
-import { dbShim as db } from "./firestore-shim.js";
-import { CuriousAgent } from "./rl-agent.js";
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { dbShim as db } from './firestore-shim.js';
 import { localDb } from './local-db.js';
+import type { CuriousAgent } from './rl-agent.js';
 
 const tracer = trace.getTracer('arcane-brain');
 
@@ -23,10 +23,10 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
     // Sort actions by Q-value descending
     const actionRanking = q_values
       .map((q: number, idx: number) => ({ action: idx, q }))
-      .sort((a: {q: number}, b: {q: number}) => b.q - a.q);
+      .sort((a: { q: number }, b: { q: number }) => b.q - a.q);
 
     // Take top 3 predicted actions
-    const topActions = actionRanking.slice(0, 3).map((a: {action: number}) => a.action);
+    const topActions = actionRanking.slice(0, 3).map((a: { action: number }) => a.action);
 
     // For AQB, let's pre-fetch memory collections based on the inferred context.
     const prefetchPromises = [];
@@ -51,7 +51,8 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
             if (cachedCount >= 10) return;
 
             // Cache miss -> fallback to Firestore
-            const snapshot = await db.collection(`users/${userId}/memories`)
+            const snapshot = await db
+              .collection(`users/${userId}/memories`)
               .where('state', '==', targetState)
               .orderBy('lastAccessed', 'desc')
               .limit(10)
@@ -64,7 +65,7 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
               content: doc.data().content || '',
               embedding: doc.data().embedding,
               lastAccessed: doc.data().lastAccessed || Date.now(),
-              updatedAt: doc.data().updatedAt || Date.now()
+              updatedAt: doc.data().updatedAt || Date.now(),
             }));
 
             if (docsToCache.length > 0) {

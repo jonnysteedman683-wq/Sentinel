@@ -71,6 +71,12 @@ interface KnowledgeGraphPanelProps {
   memories: Memory[];
 }
 
+export interface Spark {
+  id: string;
+  text: string;
+  embedding?: number[];
+}
+
 export default function KnowledgeGraphPanel({ memories }: KnowledgeGraphPanelProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);

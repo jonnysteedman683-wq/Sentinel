@@ -20,6 +20,12 @@ export interface BrainsTabProps {
   setActivePersona: (p: any) => void;
     agentStats: { epsilon: number, episodes: number, lastAction: number };
     addLog: (message: string, level?: any, source?: string) => void;
+  isAutonomyActive?: boolean;
+  setIsAutonomyActive?: (val: boolean) => void;
+  autonomyInterval?: number;
+  setAutonomyInterval?: (val: number) => void;
+  cognitiveDecisions?: any[];
+  triggerManualStep?: () => Promise<void>;
 }
 
 export const BrainsTab: React.FC<BrainsTabProps> = (props) => {
