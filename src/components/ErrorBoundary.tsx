@@ -13,6 +13,7 @@ interface State {
   copied: boolean;
   isExpanded: boolean;
   telemetrySent: boolean;
+  countdown?: number;
 }
 
 /**
@@ -29,7 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
     copied: false,
     isExpanded: false,
     telemetrySent: false,
+    countdown: undefined
   };
+
+  private timer: any = null;
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
@@ -52,9 +56,35 @@ export class ErrorBoundary extends Component<Props, State> {
     })
     .then(() => this.setState({ telemetrySent: true }))
     .catch((err) => console.error('Failed to dispatch fatal error telemetry:', err));
+
+    // Start auto-routing countdown
+    this.startCountdown();
+  }
+
+  private startCountdown = () => {
+    this.setState({ countdown: 5 });
+    this.timer = setInterval(() => {
+      this.setState(prevState => {
+        if (prevState.countdown !== undefined && prevState.countdown <= 1) {
+          clearInterval(this.timer);
+          this.handleReset();
+          return { countdown: 0 };
+        }
+        return { countdown: prevState.countdown !== undefined ? prevState.countdown - 1 : undefined };
+      });
+    }, 1000);
+  };
+
+  public componentWillUnmount() {
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
   }
 
   private handleReset = () => {
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
     // Attempt local state recovery or soft page refresh
     window.localStorage.removeItem('cognitive-session'); // clear potentially corrupt session state
     window.location.reload();
@@ -109,6 +139,12 @@ Url: ${window.location.href}
                     {this.state.error.name}:
                   </span>
                   {this.state.error.message}
+                </div>
+              )}
+
+              {this.state.countdown !== undefined && (
+                <div className="text-xs text-slate-500 font-mono animate-pulse pt-2">
+                  Auto-routing to home screen in {this.state.countdown}s...
                 </div>
               )}
 

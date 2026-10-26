@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Box, ZoomIn, ZoomOut, RotateCcw, Activity } from 'lucide-react';
 import { Memory } from '../App.js';
-import * as d3 from 'd3';
 
 interface MemoryGraph3DProps {
   memories: Memory[];
 }
 
-interface Node3D extends d3.SimulationNodeDatum {
+interface Node3D {
   id: string;
   label: string;
   fullText: string;
@@ -16,7 +15,12 @@ interface Node3D extends d3.SimulationNodeDatum {
   color: string;
   strength?: number;
   sentiment?: number;
+  // 3D physics coords
+  x: number;
+  y: number;
   z: number;
+  vx: number;
+  vy: number;
   vz: number;
   // 2D projection coords
   projX?: number;
@@ -25,9 +29,9 @@ interface Node3D extends d3.SimulationNodeDatum {
   projScale?: number;
 }
 
-interface Link3D extends d3.SimulationLinkDatum<Node3D> {
-  source: string | Node3D;
-  target: string | Node3D;
+interface Link3D {
+  source: string; // node ID
+  target: string; // node ID
   value: number;
   color: string;
 }
@@ -52,7 +56,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
   const [selectedNode, setSelectedNode] = useState<Node3D | null>(null);
   const [hoveredNode, setHoveredNode] = useState<Node3D | null>(null);
   
-  // Interactive variables
+  // Interactive variables (React states for controls, but we use refs inside anim loop for performance)
   const [autoRotate, setAutoRotate] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [showLabels, setShowLabels] = useState(true);
@@ -217,7 +221,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
     zoomRef.current = zoomLevel;
   }, [zoomLevel]);
 
-  // Main 3D Simulation using D3 and Render Loop
+  // Main 3D Simulation and Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -225,92 +229,102 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
     if (!ctx) return;
 
     let animationFrameId: number;
-    const nodes: Node3D[] = graphData.nodes.map(n => ({ ...n }));
-    const links: Link3D[] = graphData.links.map(l => ({ ...l }));
+    const nodes = graphData.nodes.map(n => ({ ...n }));
+    const links = graphData.links.map(l => ({ ...l }));
 
-    // Initialize D3 Force Simulation for X and Y layout, with customized Z calculation inside tick
-    const simulation = d3.forceSimulation<Node3D>(nodes)
-      .force('charge', d3.forceManyBody().strength(d => {
-        const node = d as Node3D;
-        return node.type === 'root' ? -500 : node.type === 'tag' ? -150 : -60;
-      }))
-      .force('link', d3.forceLink<Node3D, Link3D>(links)
-        .id(d => d.id)
-        .distance(l => {
-          const sNode = l.source as Node3D;
-          const tNode = l.target as Node3D;
-          if (sNode.type === 'root' || tNode.type === 'root') return 120;
-          if (sNode.type === 'tag' && tNode.type === 'memory') return 45;
-          return 70;
-        })
-        .strength(0.8)
-      )
-      .force('center', d3.forceCenter(0, 0).strength(0.04))
-      .velocityDecay(0.3)
-      .alphaDecay(0.015);
+    const simulate3DPhysics = () => {
+      const nodeMap = new Map<string, typeof nodes[0]>();
+      nodes.forEach(n => nodeMap.set(n.id, n));
 
-    // D3 Tick handles coordinates and Z-axis physics calculations
-    simulation.on('tick', () => {
-      // 1. Z-axis Repulsion (3D electrostatics)
+      // 1. Repulsion (electrostatic separation)
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const ni = nodes[i];
           const nj = nodes[j];
+          const dx = nj.x - ni.x;
+          const dy = nj.y - ni.y;
           const dz = nj.z - ni.z;
-          const distZ = Math.abs(dz) || 1;
-          if (distZ < 250) {
-            const k = ni.type === 'root' || nj.type === 'root' ? 1000 : 250;
-            const force = -k / (distZ * distZ + 10);
-            ni.vz += force * (dz > 0 ? 1 : -1);
-            nj.vz -= force * (dz > 0 ? 1 : -1);
+          const distSq = dx * dx + dy * dy + dz * dz || 1;
+          const dist = Math.sqrt(distSq);
+          
+          // Root repulsion is stronger to keep center clear
+          const k = ni.type === 'root' || nj.type === 'root' ? 12000 : 3500;
+          if (dist < 320) {
+            const force = -k / (distSq * dist);
+            const fx = force * dx;
+            const fy = force * dy;
+            const fz = force * dz;
+
+            ni.vx += fx;
+            ni.vy += fy;
+            ni.vz += fz;
+            nj.vx -= fx;
+            nj.vy -= fy;
+            nj.vz -= fz;
           }
         }
       }
 
-      // 2. Z-axis Attraction (Spring-like bonds along Links)
+      // 2. Attraction (spring-like connection)
       links.forEach((link) => {
-        const s = link.source as Node3D;
-        const t = link.target as Node3D;
+        const s = nodeMap.get(link.source);
+        const t = nodeMap.get(link.target);
         if (!s || !t) return;
 
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
         const dz = t.z - s.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+        
         let targetDist = 70;
-        if (s.type === 'root' && t.type === 'tag') targetDist = 100;
-        if (s.type === 'tag' && t.type === 'memory') targetDist = 40;
+        if (s.type === 'root' && t.type === 'tag') targetDist = 110;
+        if (s.type === 'tag' && t.type === 'memory') targetDist = 45;
 
-        const k = 0.05; // stiffness
-        const force = k * (Math.abs(dz) - targetDist);
-        const fz = (force * (dz || 1)) / (Math.abs(dz) || 1);
+        const k = 0.04; // stiffness
+        const force = k * (dist - targetDist);
+        
+        const fx = (force * dx) / dist;
+        const fy = (force * dy) / dist;
+        const fz = (force * dz) / dist;
 
+        s.vx += fx;
+        s.vy += fy;
         s.vz += fz;
+        t.vx -= fx;
+        t.vy -= fy;
         t.vz -= fz;
       });
 
-      // 3. Central Anchor Gravity pulling Z back to center plane
+      // 3. Central Anchor Gravity
       nodes.forEach((node) => {
+        // Subtle force drawing back to center
         const gravityStrength = node.type === 'root' ? 0.08 : 0.015;
+        node.vx += (0 - node.x) * gravityStrength;
+        node.vy += (0 - node.y) * gravityStrength;
         node.vz += (0 - node.z) * gravityStrength;
+      });
 
-        // Keep core node absolutely pinned at 3D center
+      // 4. Update coordinates with friction dampening
+      const friction = 0.82;
+      nodes.forEach((node) => {
+        // Pin root node at absolute center for structural solidity
         if (node.type === 'root') {
           node.x = 0;
           node.y = 0;
           node.z = 0;
-          node.vx = 0;
-          node.vy = 0;
-          node.vz = 0;
           return;
         }
-
-        // Apply velocity to position
+        node.x += node.vx;
+        node.y += node.vy;
         node.z += node.vz;
-        // Apply Z-axis friction dampening
-        node.vz *= 0.85;
+        node.vx *= friction;
+        node.vy *= friction;
+        node.vz *= friction;
       });
-    });
+    };
 
     const render = () => {
-      // Clear with deep obsidian theme
+      // Clear with elegant translucent dark fading for responsive visual echo
       ctx.fillStyle = '#0a0a0c';
       ctx.fillRect(0, 0, dimensions.width, dimensions.height);
 
@@ -318,57 +332,60 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
       if (autoRotate && !isDraggingRef.current) {
         const idleTime = Date.now() - lastActiveRef.current;
         if (idleTime > 2500) {
-          yawRef.current += 0.003; // Smooth rotation orbit
+          yawRef.current += 0.003; // Slow continuous orbit
         }
       }
 
+      // Physics integration step
+      simulate3DPhysics();
+
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
-      const focalLength = 320; // Perspective projection distance
+      const focalLength = 320; // Camera perspective focal point
 
-      // Trigonometric constants for camera matrix
+      // Trigonometric cache for rotation matrices
       const cosY = Math.cos(yawRef.current);
       const sinY = Math.sin(yawRef.current);
       const cosP = Math.cos(pitchRef.current);
       const sinP = Math.sin(pitchRef.current);
 
-      // Map nodes to 2D screen coordinates using perspective projection
+      // Map nodes to 2D projection
       nodes.forEach((node) => {
-        const nx = node.x || 0;
-        const ny = node.y || 0;
-        const nz = node.z || 0;
-
         // Y-axis rotation (yaw)
-        const x1 = nx * cosY - nz * sinY;
-        const z1 = nz * cosY + nx * sinY;
+        const x1 = node.x * cosY - node.z * sinY;
+        const z1 = node.z * cosY + node.x * sinY;
 
         // X-axis rotation (pitch)
-        const y2 = ny * cosP - z1 * sinP;
-        const z2 = z1 * cosP + ny * sinP;
+        const y2 = node.y * cosP - z1 * sinP;
+        const z2 = z1 * cosP + node.y * sinP;
 
-        // Perspective zoom scaling
-        const scale = (focalLength / (focalLength + z2)) * zoomRef.current;
+        // Perspective mapping math
+        const scaleMultiplier = zoomRef.current;
+        const scale = (focalLength / (focalLength + z2)) * scaleMultiplier;
 
         node.projX = centerX + x1 * scale;
         node.projY = centerY + y2 * scale;
-        node.projZ = z2; // For Painter's algorithm depth sort
+        node.projZ = z2; // Saved for painters sorting
         node.projScale = scale;
       });
 
-      // Depth Sort: painters algorithm (draw rear objects first)
+      // Depth sort (Painters' algorithm: draw things in the back first)
       const sortedNodes = [...nodes].sort((a, b) => (b.projZ || 0) - (a.projZ || 0));
+
+      const nodeMap = new Map<string, typeof nodes[0]>();
+      nodes.forEach(n => nodeMap.set(n.id, n));
 
       // Draw Connection Links
       links.forEach((link) => {
-        const s = link.source as Node3D;
-        const t = link.target as Node3D;
+        const s = nodeMap.get(link.source);
+        const t = nodeMap.get(link.target);
         if (!s || !t || s.projX === undefined || t.projX === undefined) return;
 
-        // Depth alpha projection
+        // Compute transparency based on depth (average Z index)
         const avgZ = ((s.projZ || 0) + (t.projZ || 0)) / 2;
         const depthAlpha = Math.max(0.04, Math.min(0.8, (focalLength - avgZ) / (focalLength * 1.5)));
         
-        // Match selection highlights
+        // Highlight active connections
         const isHoveredLine = hoveredNode && (hoveredNode.id === s.id || hoveredNode.id === t.id);
         const isSelectedLine = selectedNode && (selectedNode.id === s.id || selectedNode.id === t.id);
 
@@ -392,24 +409,24 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
         ctx.globalAlpha = 1.0; // Reset
       });
 
-      // Draw Nodes as gorgeous shaded spheres
+      // Draw Nodes (Back to Front)
       sortedNodes.forEach((node) => {
         if (node.projX === undefined || node.projY === undefined || node.projScale === undefined) return;
 
         const isHovered = hoveredNode && hoveredNode.id === node.id;
         const isSelected = selectedNode && selectedNode.id === node.id;
 
-        // Sphere radius based on depth projection
+        // Draw node sphere gradient
         const radius = Math.max(1.5, node.r * node.projScale);
         
         ctx.beginPath();
         ctx.arc(node.projX, node.projY, radius, 0, Math.PI * 2);
 
-        // Alpha based on depth
+        // Calculate depth opacity
         const nodeAlpha = Math.max(0.15, Math.min(1.0, (focalLength - (node.projZ || 0)) / focalLength));
         ctx.globalAlpha = nodeAlpha;
 
-        // Radial shading for highly-polished 3D sphere illusion
+        // High-fidelity 3D shading gradient
         const gradient = ctx.createRadialGradient(
           node.projX - radius * 0.3,
           node.projY - radius * 0.3,
@@ -430,34 +447,35 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // High-contrast outer orbital glow on selected/hovered nodes
+        // Glowing border for high intensity or selection
         if (isHovered || isSelected) {
           ctx.beginPath();
-          ctx.arc(node.projX, node.projY, radius + 3.5, 0, Math.PI * 2);
+          ctx.arc(node.projX, node.projY, radius + 3, 0, Math.PI * 2);
           ctx.strokeStyle = isHovered ? '#2dd4bf' : '#a855f7';
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
 
-        // Draw node labels on high scale/selection
+        // Draw Labels
         if (showLabels) {
           const showLabelThreshold = node.type === 'root' || node.type === 'tag' || isHovered || isSelected;
           if (showLabelThreshold) {
             ctx.fillStyle = isHovered ? '#ffffff' : isSelected ? '#a855f7' : '#cbd5e1';
             
-            const fontSize = Math.max(7.5, Math.min(13, 10 * node.projScale));
+            // Adjust label font size by depth scale
+            const fontSize = Math.max(7, Math.min(13, 10 * node.projScale));
             ctx.font = `${node.type === 'root' ? 'bold' : 'normal'} ${fontSize}px "JetBrains Mono", monospace`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
             ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
             ctx.shadowBlur = 4;
-            ctx.fillText(node.label, node.projX, node.projY + radius + 4.5);
-            ctx.shadowBlur = 0;
+            ctx.fillText(node.label, node.projX, node.projY + radius + 4);
+            ctx.shadowBlur = 0; // Reset shadow
           }
         }
 
-        ctx.globalAlpha = 1.0; // Reset
+        ctx.globalAlpha = 1.0; // Reset opacity
       });
 
       animationFrameId = requestAnimationFrame(render);
@@ -466,7 +484,6 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
     render();
 
     return () => {
-      simulation.stop();
       cancelAnimationFrame(animationFrameId);
     };
   }, [graphData, dimensions, autoRotate, showLabels, hoveredNode, selectedNode]);
@@ -483,6 +500,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Track mouse coordinate offsets relative to canvas bounding box for precision hover detection
     const rect = canvas.getBoundingClientRect();
     const mX = e.clientX - rect.left;
     const mY = e.clientY - rect.top;
@@ -491,15 +509,16 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
       
-      // Rotate camera viewport
+      // Update camera angles
       yawRef.current = dragAnglesRef.current.yaw - dx * 0.007;
       pitchRef.current = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, dragAnglesRef.current.pitch + dy * 0.007));
       lastActiveRef.current = Date.now();
     } else {
-      // 3D Projection Hover Hit-testing
+      // Hover detection mapping
       let hitNode: Node3D | null = null;
-      let minDistance = 15; 
+      let minDistance = 15; // Hover hit radius
 
+      // Loop through nodes to find the closest projected one
       graphData.nodes.forEach((node) => {
         if (node.projX === undefined || node.projY === undefined || node.projScale === undefined) return;
         
@@ -524,6 +543,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
   };
 
   const handleClick = () => {
+    // Select the currently hovered node
     setSelectedNode(hoveredNode);
   };
 
@@ -552,7 +572,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest font-sans flex items-center gap-1.5">
-              3D Synaptic D3 Graph
+              3D Synaptic Force Graph
             </h3>
             <p className="text-[10px] text-slate-400 font-mono">
               Drag to orbit · Scroll to zoom · Click nodes to inspect
@@ -678,7 +698,7 @@ export const MemoryGraph3D: React.FC<MemoryGraph3DProps> = ({ memories }) => {
                       </div>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map(i => (
-                           <div 
+                          <div 
                             key={i} 
                             className={`w-1.5 h-2 rounded-sm ${i * 20 <= (activeNode.strength || 0) ? 'bg-teal-500/80' : 'bg-white/10'}`}
                           />

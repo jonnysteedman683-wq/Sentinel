@@ -1,5 +1,0 @@
-node_modules
-dist
-.git
-.firestore_quota_exceeded
-*.log

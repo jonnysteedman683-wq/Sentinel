@@ -8,7 +8,7 @@ import { MemoryTab } from "./components/tabs/MemoryTab.js";
 import { BrainsTab } from "./components/tabs/BrainsTab.js";
 import { InfoTooltip } from "./components/InfoTooltip.js";
 import { ErrorBoundary } from './components/ErrorBoundary.js';
-import { handleSlashCommand, CommandContext } from './lib/CommandDelegator.js';
+import { handleSlashCommand, type CommandContext } from './lib/CommandDelegator.js';
 import { HelpWidget, VitalsWidget, LogsWidget, DiagnosticWidget, RebootWidget } from './components/CommandWidgets.js';
 import { QpuErdWidget } from './components/QpuErdWidget.js';
 import { SelfHealingErrorCard } from './components/SelfHealingErrorCard.js';
@@ -22,7 +22,7 @@ import VitalsDashboard from "./components/VitalsDashboard.js";
 import { formatTimeAgo } from './lib/utils.js';
 import { SentimentDriftChart } from "./components/SentimentDriftChart.js";
 import { MindMap } from "./components/MindMap.js";
-import { Spark } from "./components/KnowledgeGraphPanel.js";
+import type { Spark } from "./components/KnowledgeGraphPanel.js";
 import { CuriousAgent } from './lib/rl-agent.js';
 import { localDb } from './lib/local-db.js';
 import { runPredictivePrefetch } from './lib/predictive-prefetch.js';
@@ -35,12 +35,12 @@ import { ExecutiveIntegrationNode } from './components/ExecutiveIntegrationNode.
 import { LandingScreen } from './components/LandingScreen.js';
 import { AutoDebugger } from './components/AutoDebugger.js';
 import TelemetryDashboard from './components/TelemetryDashboard.js';
-import { MemoryNudge, Memory as NudgeMemory } from './components/MemoryNudge.js';
-import { ConsolidationSuggestion, ConsolidationProposal } from './components/ConsolidationSuggestion.js';
+import { MemoryNudge, type Memory as NudgeMemory } from './components/MemoryNudge.js';
+import { ConsolidationSuggestion, type ConsolidationProposal } from './components/ConsolidationSuggestion.js';
 import { OnboardingWizard } from './components/OnboardingWizard.js';
 import InsightReveal from './components/InsightReveal.js';
 import InsightFeed from './components/InsightFeed.js';
-import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, InsightData, ingestTelemetry } from './lib/api.js';
+import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, type InsightData, ingestTelemetry } from './lib/api.js';
 import { auth, db, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
 import { ContextMenu } from './components/ContextMenu.js';
 
@@ -103,7 +103,7 @@ export const PERSONAS: Persona[] = [
   }
 ];
 
-import { SystemLog, SystemHealthVector } from './types.js';
+import type { SystemLog, SystemHealthVector } from './types.js';
 
 interface Message {
   id: string;
@@ -239,30 +239,36 @@ function MainApp() {
     const fetchHealth = async () => {
       try {
         const res = await fetch('/api/system/health');
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
         const metrics: SystemHealthVector = await res.json();
         
         setVitals(prev => ({
           ...prev,
           resonance: 85.0,
-          entropy: metrics.unhandledErrors * 10 + (Math.random() * 5),
-          stability: 100 - (metrics.memoryUsageRatio * 50 + metrics.cpuLoad * 50),
-          cpu: metrics.cpuLoad * 100,
-          memory: metrics.memoryUsageRatio * 100,
-          latency: metrics.geminiLatencyMs,
-          errors: metrics.firestoreReadErrors + metrics.firestoreWriteErrors + metrics.unhandledErrors
+          entropy: (metrics.unhandledErrors || 0) * 10 + (Math.random() * 5),
+          stability: 100 - ((metrics.memoryUsageRatio || 0) * 50 + (metrics.cpuLoad || 0) * 50),
+          cpu: (metrics.cpuLoad || 0) * 100,
+          memory: (metrics.memoryUsageRatio || 0) * 100,
+          latency: metrics.geminiLatencyMs || 0,
+          errors: (metrics.firestoreReadErrors || 0) + (metrics.firestoreWriteErrors || 0) + (metrics.unhandledErrors || 0)
         }));
       } catch (e) {
-        console.error("Failed to fetch health metrics:", e);
+        console.warn("Failed to fetch health metrics:", e);
       }
     };
 
     const fetchHistory = async () => {
       try {
         const res = await fetch('/api/system/maintenance-history');
+        if (!res.ok) return;
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
         const history = await res.json();
-        setMaintenanceHistory(history);
+        setMaintenanceHistory(Array.isArray(history) ? history : []);
       } catch (e) {
-        console.error("Failed to fetch maintenance history:", e);
+        console.warn("Failed to fetch maintenance history:", e);
       }
     };
 
@@ -329,23 +335,25 @@ function MainApp() {
   const [slmProgress, setSlmProgress] = useState<any>(null);
 
   useEffect(() => {
-    mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), { type: 'module' });
+    if (typeof Worker !== 'undefined') {
+      mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), { type: 'module' });
 
-    slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), { type: 'module' });
-    slmWorkerRef.current.addEventListener('message', (e) => {
-        if (e.data.type === 'loaded') {
-            setSlmLoaded(true);
-        } else if (e.data.type === 'progress') {
-            setSlmProgress(e.data.progress);
-        } else if (e.data.type === 'complete' && e.data.id && e.data.id.startsWith('intrusive_')) {
-            // Add intrusive thought as a system log or minor message
-            const thought = e.data.result;
-            if (thought) {
-              setMessages(prev => [...prev, { id: e.data.id, role: 'ai', content: '', selfAnalysis: `[SLM System 1 Insight] ${thought}` }]);
-            }
-        }
-    });
-    slmWorkerRef.current.postMessage({ action: 'load' });
+      slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), { type: 'module' });
+      slmWorkerRef.current.addEventListener('message', (e) => {
+          if (e.data.type === 'loaded') {
+              setSlmLoaded(true);
+          } else if (e.data.type === 'progress') {
+              setSlmProgress(e.data.progress);
+          } else if (e.data.type === 'complete' && e.data.id && e.data.id.startsWith('intrusive_')) {
+              // Add intrusive thought as a system log or minor message
+              const thought = e.data.result;
+              if (thought) {
+                setMessages(prev => [...prev, { id: e.data.id, role: 'ai', content: '', selfAnalysis: `[SLM System 1 Insight] ${thought}` }]);
+              }
+          }
+      });
+      slmWorkerRef.current.postMessage({ action: 'load' });
+    }
 
     return () => {
       if (mlWorkerRef.current) mlWorkerRef.current.terminate();
@@ -720,6 +728,8 @@ function MainApp() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
         const data = await res.json();
         
         if (mlWorkerRef.current) {
@@ -961,7 +971,7 @@ function MainApp() {
   useEffect(() => {
     if (!user) return;
     
-    let isMounted = true;
+    const isMounted = true;
     import('dexie').then(() => {
       // UI Hydration: Load high-dimensional memory states from local Dexie database for <10ms inference latency
       localDb.memories.where('[userId+state]').between([user.uid, ''], [user.uid, '\uffff']).toArray().then((cached: any[]) => {
@@ -1296,7 +1306,7 @@ function MainApp() {
     }
   }, [debouncedSearchQuery]);
 
-  const [memoryViewMode, setMemoryViewMode] = useState<'list' | 'timeline' | 'graph' | '3d'>('list');
+  const [memoryViewMode, setMemoryViewMode] = useState<'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills'>('list');
   const [isConsolidating, setIsConsolidating] = useState(false);
   
   // Bulk selection and actions
@@ -2122,7 +2132,7 @@ function MainApp() {
       if (data.extractedMemory) {
         addLog(`Extracting new memory: ${data.extractedMemory}`, 'NEURAL', 'MEMORY', traceId);
         
-        let embedding: number[] | undefined = undefined;
+        let embedding: number[] | undefined ;
         try {
           const embedRes = await fetch('/api/embed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: data.extractedMemory }) });
           const embedData = await embedRes.json();
@@ -2266,7 +2276,7 @@ function MainApp() {
     addLog(`Direct neural link: injecting custom concept node`, 'INFO', 'CORE');
     const strength = 100;
     
-    let embedding: number[] | undefined = undefined;
+    let embedding: number[] | undefined ;
     try {
       const res = await fetch('/api/embed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
       const data = await res.json();
@@ -3124,7 +3134,7 @@ function MainApp() {
                       onDismiss={handleDismissInsight}
                       onTimeout={handleInsightTimeout}
                     />
-                    <InsightFeed onReward={(r, id) => rlAgent.current?.applyDelayedInsightReward(r, id)} />
+                    <InsightFeed onReward={(r, id) => { rlAgent.current?.applyDelayedInsightReward(r, id); }} />
                       
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 z-10 scroll-smooth">

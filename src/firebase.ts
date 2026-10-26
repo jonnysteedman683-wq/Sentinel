@@ -162,7 +162,7 @@ export const anonymousSignIn = async (): Promise<{ user: any } | null> => {
   } catch (error: any) {
     console.warn('[Firebase Auth Fallback] Anonymous sign in failed. This usually means "Anonymous" authentication is not enabled in your Firebase Console (Build > Authentication > Sign-in method). Falling back to offline local sandbox user.', error);
     if (error.message?.includes("auth/admin-restricted-operation")) {
-      console.error("ACTION REQUIRED: Enable Anonymous Authentication in the Firebase Console to allow cloud-synced sessions.");
+      console.warn("ACTION REQUIRED: Enable Anonymous Authentication in the Firebase Console to allow cloud-synced sessions.");
     }
     
     const fallbackUser = {

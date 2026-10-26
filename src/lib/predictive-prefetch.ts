@@ -1,7 +1,7 @@
-import { dbShim as db } from "./firestore-shim.js";
-import { CuriousAgent } from "./rl-agent.js";
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { dbShim as db } from './firestore-shim.js';
 import { localDb } from './local-db.js';
+import type { CuriousAgent } from './rl-agent.js';
 
 const tracer = trace.getTracer('arcane-brain');
 
@@ -15,19 +15,19 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
       span.end();
       return;
     }
-    
+
     // Get Q-values for all actions
     // Since CuriousAgent uses an HRL or base DQN, we can get top level Q values
     const q_values = await agent.getQValues(currentState);
-    
+
     // Sort actions by Q-value descending
     const actionRanking = q_values
       .map((q: number, idx: number) => ({ action: idx, q }))
-      .sort((a: {q: number}, b: {q: number}) => b.q - a.q);
-      
+      .sort((a: { q: number }, b: { q: number }) => b.q - a.q);
+
     // Take top 3 predicted actions
-    const topActions = actionRanking.slice(0, 3).map((a: {action: number}) => a.action);
-    
+    const topActions = actionRanking.slice(0, 3).map((a: { action: number }) => a.action);
+
     // For AQB, let's pre-fetch memory collections based on the inferred context.
     const prefetchPromises = [];
     for (const action of topActions) {
@@ -37,7 +37,7 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
       else if (action === 2 || action === 3) targetState = 'shortTerm';
       else if (action === 4 || action === 5) targetState = 'wisdom';
       else targetState = 'longTerm';
-      
+
       if (targetState) {
         // Hybrid sync: Check Dexie local cache first
         const p = (async () => {
@@ -46,17 +46,18 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
               .where('[userId+state]')
               .equals([userId, targetState])
               .count();
-              
+
             // Cache hit -> fast return
             if (cachedCount >= 10) return;
-            
+
             // Cache miss -> fallback to Firestore
-            const snapshot = await db.collection(`users/${userId}/memories`)
+            const snapshot = await db
+              .collection(`users/${userId}/memories`)
               .where('state', '==', targetState)
               .orderBy('lastAccessed', 'desc')
               .limit(10)
               .get();
-              
+
             const docsToCache = snapshot.docs.map((doc: any) => ({
               id: doc.id,
               userId,
@@ -64,9 +65,9 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
               content: doc.data().content || '',
               embedding: doc.data().embedding,
               lastAccessed: doc.data().lastAccessed || Date.now(),
-              updatedAt: doc.data().updatedAt || Date.now()
+              updatedAt: doc.data().updatedAt || Date.now(),
             }));
-            
+
             if (docsToCache.length > 0) {
               await localDb.memories.bulkPut(docsToCache);
             }
@@ -77,7 +78,7 @@ export async function runPredictivePrefetch(userId: string, agent: CuriousAgent)
         prefetchPromises.push(p);
       }
     }
-    
+
     // Wait for network requests to populate cache
     await Promise.all(prefetchPromises);
     span.setStatus({ code: SpanStatusCode.OK });

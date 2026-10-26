@@ -16,5 +16,5 @@ export const localDb = new DexieClass('AQBLocalDatabase') as any;
 
 // Schema versioning
 localDb.version(1).stores({
-  memories: 'id, [userId+state], lastAccessed, updatedAt'
+  memories: 'id, [userId+state], lastAccessed, updatedAt',
 });

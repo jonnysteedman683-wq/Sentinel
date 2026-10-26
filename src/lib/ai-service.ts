@@ -81,14 +81,14 @@ export class FallbackGenAI {
     generateContent: async (params: any) => {
       const startTime = Date.now();
       const modelType = params.modelType || 'fast';
-      const fastModel = "gemini-1.5-flash";
-      const smartModel = "gemini-1.5-pro";
+      const fastModel = "gemini-3.5-flash";
+      const smartModel = "gemini-3.1-pro-preview";
       const model = params.model || (modelType === 'smart' ? smartModel : fastModel);
       const traceId = params.traceId || null;
       
       console.log(`[FallbackGenAI][${traceId || 'no-trace'}] Requesting model: ${model}`);
       
-      const hasValidGeminiKey = !!process.env.GEMINI_API_KEY;
+      const hasValidGeminiKey = process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.");
       if (hasValidGeminiKey) {
         let attempts = 0;
         const maxAttempts = 2;
@@ -123,31 +123,6 @@ export class FallbackGenAI {
               span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
               span.recordException(err);
               span.end();
-              
-              const errorMsg = String(err.message || "");
-              const isAuthError = errorMsg.includes("API_KEY_INVALID") || 
-                                 errorMsg.includes("API key not found") || 
-                                 errorMsg.includes("401") || 
-                                 errorMsg.includes("UNAUTHENTICATED") ||
-                                 errorMsg.includes("invalid authentication credentials");
-
-              if (isAuthError) {
-                const criticalMsg = "CRITICAL: GEMINI_API_KEY is invalid, missing, or unauthenticated. Please provide a valid key in the Settings menu (Gears icon). Error: 401 Unauthenticated.";
-                let text = criticalMsg;
-                if (params.config?.responseMimeType === "application/json") {
-                  text = JSON.stringify({
-                    error: criticalMsg,
-                    status: "UNAUTHENTICATED",
-                    code: 401,
-                    text: criticalMsg,
-                    candidates: [] // Mock for safety
-                  });
-                }
-                return {
-                  text: text,
-                  candidates: [{ content: { parts: [{ text: text }] } }]
-                };
-              }
               throw err;
             }
           } catch (e: any) {
@@ -244,36 +219,17 @@ export class FallbackGenAI {
         }
       }
 
-      try {
-        const openRouterModels = modelType === 'smart' 
-          ? ["meta-llama/llama-3.3-70b-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free", "anthropic/claude-3.5-sonnet"]
-          : ["meta-llama/llama-3.2-3b-instruct:free", "google/gemma-4-31b-it:free", "anthropic/claude-3-haiku"];
-
-        let lastError: any = null;
-        for (const openRouterModel of openRouterModels) {
+      if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "" && !process.env.OPENROUTER_API_KEY.includes("your_")) {
         try {
-          const start = Date.now();
-          let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: openRouterModel,
-              messages,
-              max_tokens: maxTokens
-            }),
-          });
+          const openRouterModels = modelType === 'smart' 
+            ? ["meta-llama/llama-3.3-70b-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free", "anthropic/claude-3.5-sonnet"]
+            : ["meta-llama/llama-3.2-3b-instruct:free", "google/gemma-4-31b-it:free", "anthropic/claude-3-haiku"];
 
-          if (!response.ok) {
-            const errText = await response.text();
-            if (response.status === 402 && errText.includes("max_tokens")) {
-              let affordableTokens = 150;
-              const match = errText.match(/can only afford (\d+)/);
-              if (match && match[1]) affordableTokens = Math.max(50, parseInt(match[1], 10) - 10);
-              
-              response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          let lastError: any = null;
+          for (const openRouterModel of openRouterModels) {
+            try {
+              const start = Date.now();
+              let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
                   "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -282,69 +238,93 @@ export class FallbackGenAI {
                 body: JSON.stringify({
                   model: openRouterModel,
                   messages,
-                  max_tokens: affordableTokens
+                  max_tokens: maxTokens
                 }),
               });
-            }
-            if (!response.ok) {
-              console.warn(`[FallbackGenAI] OpenRouter model ${openRouterModel} failed with status ${response.status}. Trying next...`);
-              continue;
-            }
-          }
 
-          const data = await response.json();
-          await logLlmCallToFirestore("openrouter", openRouterModel, true, Date.now() - start, null, traceId);
-          const content = data.choices?.[0]?.message?.content || "";
-          return {
-            text: content,
-            candidates: [{ content: { parts: [{ text: content }] } }]
-          };
-        } catch (err: any) {
-          lastError = err;
-          console.warn(`[FallbackGenAI] OpenRouter model ${openRouterModel} failed: ${err.message}. Trying next...`);
-        }
-      }
-      if (lastError) throw lastError;
-      } catch (openRouterErr: any) {
-        console.error("[FallbackGenAI] OpenRouter failed, returning local fallback:", openRouterErr.message);
-        let defaultErrorText = "Cognitive pathways restricted. System remains functional in local mode.";
-        if (params.config?.responseMimeType === "application/json") {
-          const contentsStr = typeof params.contents === "string" ? params.contents : JSON.stringify(params.contents || "");
-          const promptLower = contentsStr.toLowerCase();
-          if (promptLower.includes("array") || promptLower.includes("list") || promptLower.includes("strictly a valid json array") || promptLower.includes("list of objects")) {
-            defaultErrorText = JSON.stringify([
-              {
-                text: "Cognitive pathways restricted. System remains functional in local mode.",
-                tags: ["system", "offline"],
-                sentiment: 0.0
+              if (!response.ok) {
+                const errText = await response.text();
+                if (response.status === 402 && errText.includes("max_tokens")) {
+                  let affordableTokens = 150;
+                  const match = errText.match(/can only afford (\d+)/);
+                  if (match && match[1]) affordableTokens = Math.max(50, parseInt(match[1], 10) - 10);
+                  
+                  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                      "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                      model: openRouterModel,
+                      messages,
+                      max_tokens: affordableTokens
+                    }),
+                  });
+                }
+                if (!response.ok) {
+                  console.warn(`[FallbackGenAI] OpenRouter model ${openRouterModel} failed with status ${response.status}. Trying next...`);
+                  lastError = new Error(`OpenRouter HTTP ${response.status}`);
+                  continue;
+                }
               }
-            ]);
-          } else {
-            defaultErrorText = JSON.stringify({
-              text: "Cognitive pathways restricted. System remains functional in local mode.",
-              selfAnalysis: "System operating in local degraded mode.",
-              cognitiveLog: {
-                draft: "Local fallback enabled",
-                recollection: "System database/API limits reached",
-                reflection: "Operating in local sandbox mode",
-                reintegration: "Neural pathways active",
-                reiterated: "Neural bridge active. Balanced logic."
-              },
-              extractedMemory: null,
-              extractedTags: ["system"],
-              suggestedShortcuts: []
-            });
+
+              const data = await response.json();
+              await logLlmCallToFirestore("openrouter", openRouterModel, true, Date.now() - start, null, traceId);
+              const content = data.choices?.[0]?.message?.content || "";
+              return {
+                text: content,
+                candidates: [{ content: { parts: [{ text: content }] } }]
+              };
+            } catch (err: any) {
+              lastError = err;
+              console.warn(`[FallbackGenAI] OpenRouter model ${openRouterModel} failed: ${err.message}. Trying next...`);
+            }
           }
+          if (lastError) throw lastError;
+        } catch (openRouterErr: any) {
+          console.error("[FallbackGenAI] OpenRouter failed, returning local fallback:", openRouterErr.message);
         }
-        return {
-          text: defaultErrorText,
-          candidates: [{ content: { parts: [{ text: defaultErrorText }] } }]
-        };
       }
+
+      // Guaranteed Local Fallback Response
+      let defaultErrorText = "Cognitive pathways restricted. System remains functional in local mode.";
+      if (params.config?.responseMimeType === "application/json") {
+        const contentsStr = typeof params.contents === "string" ? params.contents : JSON.stringify(params.contents || "");
+        const promptLower = contentsStr.toLowerCase();
+        if (promptLower.includes("array") || promptLower.includes("list") || promptLower.includes("strictly a valid json array") || promptLower.includes("list of objects")) {
+          defaultErrorText = JSON.stringify([
+            {
+              text: "Cognitive pathways restricted. System remains functional in local mode.",
+              tags: ["system", "offline"],
+              sentiment: 0.0
+            }
+          ]);
+        } else {
+          defaultErrorText = JSON.stringify({
+            text: "Cognitive pathways restricted. System remains functional in local mode.",
+            selfAnalysis: "System operating in local degraded mode.",
+            cognitiveLog: {
+              draft: "Local fallback enabled",
+              recollection: "System database/API limits reached",
+              reflection: "Operating in local sandbox mode",
+              reintegration: "Neural pathways active",
+              reiterated: "Neural bridge active. Balanced logic."
+            },
+            extractedMemory: null,
+            extractedTags: ["system"],
+            suggestedShortcuts: []
+          });
+        }
+      }
+      return {
+        text: defaultErrorText,
+        candidates: [{ content: { parts: [{ text: defaultErrorText }] } }]
+      };
     },
 
     embedContent: async (params: any) => {
-      const hasValidGeminiKey = !!process.env.GEMINI_API_KEY;
+      const hasValidGeminiKey = process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.");
       if (hasValidGeminiKey) {
         try {
           const googleAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
