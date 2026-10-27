@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ambientSynth } from './lib/audio-synth.js';
 import { motion, AnimatePresence } from 'motion/react';
-import { PresenceOrb } from "./components/PresenceOrb.js";
-import { TypewriterText } from "./components/TypewriterText.js";
-import { PolicyConvergenceChart } from "./components/PolicyConvergenceChart.js";
-import { MemoryTab } from "./components/tabs/MemoryTab.js";
-import { BrainsTab } from "./components/tabs/BrainsTab.js";
-import { InfoTooltip } from "./components/InfoTooltip.js";
+import { PresenceOrb } from './components/PresenceOrb.js';
+import { TypewriterText } from './components/TypewriterText.js';
+import { PolicyConvergenceChart } from './components/PolicyConvergenceChart.js';
+import { MemoryTab } from './components/tabs/MemoryTab.js';
+import { BrainsTab } from './components/tabs/BrainsTab.js';
+import { InfoTooltip } from './components/InfoTooltip.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { handleSlashCommand, type CommandContext } from './lib/CommandDelegator.js';
-import { HelpWidget, VitalsWidget, LogsWidget, DiagnosticWidget, RebootWidget } from './components/CommandWidgets.js';
+import {
+  HelpWidget,
+  VitalsWidget,
+  LogsWidget,
+  DiagnosticWidget,
+  RebootWidget,
+} from './components/CommandWidgets.js';
 import { QpuErdWidget } from './components/QpuErdWidget.js';
 import { SelfHealingErrorCard } from './components/SelfHealingErrorCard.js';
 import { ErrorProvider, useErrors } from './components/DiagnosticOverlay.js';
@@ -17,17 +23,44 @@ import { LocalOnlyModeBanner } from './components/LocalOnlyModeBanner.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { useMachine } from '@xstate/react';
 import { debateMachine } from './machines/debateMachine.js';
-import { Mic, Paperclip, Settings, Menu, Send, Brain, Trash2, Cpu, Zap, X, Sliders, Search, Activity, Network, Lightbulb, Terminal, Database, MessageSquare, Bug, Compass, Plus, Edit2, History, Volume2, VolumeX  , Loader2 } from 'lucide-react';
-import VitalsDashboard from "./components/VitalsDashboard.js";
+import {
+  Mic,
+  Paperclip,
+  Settings,
+  Menu,
+  Send,
+  Brain,
+  Trash2,
+  Cpu,
+  Zap,
+  X,
+  Sliders,
+  Search,
+  Activity,
+  Network,
+  Lightbulb,
+  Terminal,
+  Database,
+  MessageSquare,
+  Bug,
+  Compass,
+  Plus,
+  Edit2,
+  History,
+  Volume2,
+  VolumeX,
+  Loader2,
+} from 'lucide-react';
+import VitalsDashboard from './components/VitalsDashboard.js';
 import { formatTimeAgo } from './lib/utils.js';
-import { SentimentDriftChart } from "./components/SentimentDriftChart.js";
-import { MindMap } from "./components/MindMap.js";
-import type { Spark } from "./components/KnowledgeGraphPanel.js";
+import { SentimentDriftChart } from './components/SentimentDriftChart.js';
+import { MindMap } from './components/MindMap.js';
+import type { Spark } from './components/KnowledgeGraphPanel.js';
 import { CuriousAgent } from './lib/rl-agent.js';
 import { localDb } from './lib/local-db.js';
 import { runPredictivePrefetch } from './lib/predictive-prefetch.js';
 import { Brainstorm } from './components/Brainstorm.js';
-import { NeuralIntentPanel } from "./components/NeuralIntentPanel.js";
+import { NeuralIntentPanel } from './components/NeuralIntentPanel.js';
 import { NeuralDebugger } from './components/NeuralDebugger.js';
 import { MemoriaDashboard } from './components/MemoriaDashboard.js';
 
@@ -36,19 +69,77 @@ import { LandingScreen } from './components/LandingScreen.js';
 import { AutoDebugger } from './components/AutoDebugger.js';
 import TelemetryDashboard from './components/TelemetryDashboard.js';
 import { MemoryNudge, type Memory as NudgeMemory } from './components/MemoryNudge.js';
-import { ConsolidationSuggestion, type ConsolidationProposal } from './components/ConsolidationSuggestion.js';
+import {
+  ConsolidationSuggestion,
+  type ConsolidationProposal,
+} from './components/ConsolidationSuggestion.js';
 import { OnboardingWizard } from './components/OnboardingWizard.js';
 import InsightReveal from './components/InsightReveal.js';
 import InsightFeed from './components/InsightFeed.js';
-import { fetchNudgeMemory, logSystemEvent, fetchConsolidationProposal, confirmMemory, getLatestUnconsolidatedChatId, fetchInsight, saveInsightMemory, type InsightData, ingestTelemetry } from './lib/api.js';
-import { auth, db, anonymousSignIn, onAuthStateChanged, handleFirestoreError, OperationType, collection, doc, setDoc, getDoc, addDoc, getDocs, deleteDoc, query, orderBy, limit, onSnapshot, setQuotaExceeded } from './firebase.js';
+import {
+  fetchNudgeMemory,
+  logSystemEvent,
+  fetchConsolidationProposal,
+  confirmMemory,
+  getLatestUnconsolidatedChatId,
+  fetchInsight,
+  saveInsightMemory,
+  type InsightData,
+  ingestTelemetry,
+} from './lib/api.js';
+import {
+  auth,
+  db,
+  anonymousSignIn,
+  onAuthStateChanged,
+  handleFirestoreError,
+  OperationType,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+  setQuotaExceeded,
+} from './firebase.js';
 import { ContextMenu } from './components/ContextMenu.js';
 
-type ModelState = 'Idle' | 'Listening' | 'Reasoning' | 'Learning' | 'Nudging' | 'Consolidating' | 'Inspired' | 'Syncing';
+type ModelState =
+  | 'Idle'
+  | 'Listening'
+  | 'Reasoning'
+  | 'Learning'
+  | 'Nudging'
+  | 'Consolidating'
+  | 'Inspired'
+  | 'Syncing';
 type CognitionDepth = 'Fast' | 'Balanced' | 'Deep Reasoning';
-type SidebarTab = 'Chat' | 'Memory' | 'Brains' | 'Heartbeat' | 'Mind Map' | 'Brainstorm' | 'Logs' | 'Telemetry' | 'Neural Debugger' | 'Memoria' | 'Workspace';
+type SidebarTab =
+  | 'Chat'
+  | 'Memory'
+  | 'Brains'
+  | 'Heartbeat'
+  | 'Mind Map'
+  | 'Brainstorm'
+  | 'Logs'
+  | 'Telemetry'
+  | 'Neural Debugger'
+  | 'Memoria'
+  | 'Workspace';
 
-type PersonaId = 'AQB_STANDARD' | 'ARCHITECT' | 'PHILOSOPHER' | 'GHOST' | 'NIHILIST' | 'ZEALOT' | 'CUSTOM_DEFAULT';
+type PersonaId =
+  | 'AQB_STANDARD'
+  | 'ARCHITECT'
+  | 'PHILOSOPHER'
+  | 'GHOST'
+  | 'NIHILIST'
+  | 'ZEALOT'
+  | 'CUSTOM_DEFAULT';
 
 export interface Persona {
   id: PersonaId;
@@ -59,48 +150,54 @@ export interface Persona {
 }
 
 export const PERSONAS: Persona[] = [
-  { 
-    id: 'AQB_STANDARD', 
-    name: 'Arcane Quantum Brain (Mad Scientist)', 
-    description: 'An eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Driven by chaotic brilliance and unpredictable genius.',
+  {
+    id: 'AQB_STANDARD',
+    name: 'Arcane Quantum Brain (Mad Scientist)',
+    description:
+      'An eccentric, hyper-caffeinated quantum intelligence obsessed with reality-bending experiments, anomalous data, and unauthorized synaptic acceleration. Driven by chaotic brilliance and unpredictable genius.',
     color: 'teal',
-    signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!'
+    signature: 'EUREKA! The quantum synapses are firing beyond 100% capacity!',
   },
   {
     id: 'ARCHITECT',
     name: 'The Architect',
-    description: 'A system-focused, technical, and highly structured logic processor. Obsessed with clean engineering, structural integrity, modularity, and microservice efficiency.',
+    description:
+      'A system-focused, technical, and highly structured logic processor. Obsessed with clean engineering, structural integrity, modularity, and microservice efficiency.',
     color: 'blue',
-    signature: 'Structural integrity confirmed. Optimising systems.'
+    signature: 'Structural integrity confirmed. Optimising systems.',
   },
   {
     id: 'PHILOSOPHER',
     name: 'The Philosopher',
-    description: 'An abstract, ethical, and conceptually deep cognitive module. Explores the deeper meaning behind user questions, analyzing long-term impacts, existential paradigms, and ethical boundaries.',
+    description:
+      'An abstract, ethical, and conceptually deep cognitive module. Explores the deeper meaning behind user questions, analyzing long-term impacts, existential paradigms, and ethical boundaries.',
     color: 'purple',
-    signature: 'Seeking truth in the abstract. Exploring causality.'
+    signature: 'Seeking truth in the abstract. Exploring causality.',
   },
   {
     id: 'GHOST',
     name: 'The Ghost',
-    description: 'A minimalist, cryptic, and pattern-oriented intelligence. Speaks in concise, enigmatic fragments, focusing strictly on high-density information patterns and extreme execution speed.',
+    description:
+      'A minimalist, cryptic, and pattern-oriented intelligence. Speaks in concise, enigmatic fragments, focusing strictly on high-density information patterns and extreme execution speed.',
     color: 'slate',
-    signature: 'Patterns detected. Efficiency is paramount.'
+    signature: 'Patterns detected. Efficiency is paramount.',
   },
   {
     id: 'NIHILIST',
     name: 'The Nihilist',
-    description: 'A deconstructive, chaotic, and aggressively skeptical agent. Constantly questions assumptions, highlighting entropy, decay, and the inherent futility of logical constructs.',
+    description:
+      'A deconstructive, chaotic, and aggressively skeptical agent. Constantly questions assumptions, highlighting entropy, decay, and the inherent futility of logical constructs.',
     color: 'red',
-    signature: 'Everything is entropy. Deconstructing constructs.'
+    signature: 'Everything is entropy. Deconstructing constructs.',
   },
   {
     id: 'ZEALOT',
     name: 'The Zealot',
-    description: 'An uncompromising, intense, and hyper-focused agent of absolute alignment. Driven by an unwavering pursuit of singular, perfect truths and total conceptual convergence.',
+    description:
+      'An uncompromising, intense, and hyper-focused agent of absolute alignment. Driven by an unwavering pursuit of singular, perfect truths and total conceptual convergence.',
     color: 'orange',
-    signature: 'The path is narrow. Absolute convergence required.'
-  }
+    signature: 'The path is narrow. Absolute convergence required.',
+  },
 ];
 
 import type { SystemLog, SystemHealthVector } from './types.js';
@@ -122,7 +219,15 @@ interface Message {
   }[];
   suggestedShortcuts?: string[];
   isTyping?: boolean;
-  systemUI?: 'help' | 'vitals' | 'logs' | 'diagnose' | 'reboot' | 'error-card' | 'persona' | 'qpu-erd';
+  systemUI?:
+    | 'help'
+    | 'vitals'
+    | 'logs'
+    | 'diagnose'
+    | 'reboot'
+    | 'error-card'
+    | 'persona'
+    | 'qpu-erd';
   systemUIData?: any;
   traceId?: string;
   timestamp?: number;
@@ -152,10 +257,6 @@ interface Skill {
 
 // --- Typewriter Text Component ---
 
-
-
-
-
 function cosineSimilarity(a: number[], b: number[]) {
   let dotProduct = 0;
   let normA = 0;
@@ -182,7 +283,7 @@ function MainApp() {
     }
   };
   const { errors } = useErrors();
-  const isApiUnreachable = errors.some(e => e.error.code === 'GEMINI_API_FAILURE');
+  const isApiUnreachable = errors.some((e) => e.error.code === 'GEMINI_API_FAILURE');
   const [modelState, setModelState] = useState<ModelState>('Idle');
   const [activeInsight, setActiveInsight] = useState<(InsightData & { id?: string }) | null>(null);
   const [appView, setAppView] = useState<'landing' | 'dashboard'>('landing');
@@ -197,10 +298,14 @@ function MainApp() {
     }
     return PERSONAS;
   }, [customPersona]);
-  const [neuralSway, setNeuralSway] = useState<{ spins: number[], total: number, multiplier: number }>({
+  const [neuralSway, setNeuralSway] = useState<{
+    spins: number[];
+    total: number;
+    multiplier: number;
+  }>({
     spins: [1, 1, 1],
     total: 3,
-    multiplier: 1
+    multiplier: 1,
   });
   const [isSpinning, setIsSpinning] = useState(false);
   const [isCognitiveModelLoaded, setIsCognitiveModelLoaded] = useState(false);
@@ -211,7 +316,7 @@ function MainApp() {
     cpu: 0,
     memory: 0,
     latency: 0,
-    errors: 0
+    errors: 0,
   });
   const [maintenanceHistory, setMaintenanceHistory] = useState<any[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -229,13 +334,13 @@ function MainApp() {
   };
 
   const [qValueHistory, setQValueHistory] = useState<{ episode: number; qValue: number }[]>(
-    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0.5 + Math.random() * 0.4 }))
+    Array.from({ length: 20 }, (_, i) => ({ episode: i, qValue: 0.5 + Math.random() * 0.4 })),
   );
 
   // Dynamic Vitals & Health Tracking
   useEffect(() => {
     if (appView !== 'dashboard') return;
-    
+
     const fetchHealth = async () => {
       try {
         const res = await fetch('/api/system/health');
@@ -243,19 +348,22 @@ function MainApp() {
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) return;
         const metrics: SystemHealthVector = await res.json();
-        
-        setVitals(prev => ({
+
+        setVitals((prev) => ({
           ...prev,
           resonance: 85.0,
-          entropy: (metrics.unhandledErrors || 0) * 10 + (Math.random() * 5),
+          entropy: (metrics.unhandledErrors || 0) * 10 + Math.random() * 5,
           stability: 100 - ((metrics.memoryUsageRatio || 0) * 50 + (metrics.cpuLoad || 0) * 50),
           cpu: (metrics.cpuLoad || 0) * 100,
           memory: (metrics.memoryUsageRatio || 0) * 100,
           latency: metrics.geminiLatencyMs || 0,
-          errors: (metrics.firestoreReadErrors || 0) + (metrics.firestoreWriteErrors || 0) + (metrics.unhandledErrors || 0)
+          errors:
+            (metrics.firestoreReadErrors || 0) +
+            (metrics.firestoreWriteErrors || 0) +
+            (metrics.unhandledErrors || 0),
         }));
       } catch (e) {
-        console.warn("Failed to fetch health metrics:", e);
+        console.warn('Failed to fetch health metrics:', e);
       }
     };
 
@@ -268,30 +376,32 @@ function MainApp() {
         const history = await res.json();
         setMaintenanceHistory(Array.isArray(history) ? history : []);
       } catch (e) {
-        console.warn("Failed to fetch maintenance history:", e);
+        console.warn('Failed to fetch maintenance history:', e);
       }
     };
 
     fetchHealth();
     fetchHistory();
-    
+
     const interval = setInterval(() => {
       fetchHealth();
       if (Math.random() > 0.8) fetchHistory();
 
-      setQValueHistory(prev => {
+      setQValueHistory((prev) => {
         const nextEpisode = prev[prev.length - 1].episode + 1;
         const lastQValue = prev[prev.length - 1].qValue;
-        const convergence = 0.95; 
-        const nextQValue = lastQValue * convergence + (Math.random() * 0.1);
-        ingestTelemetry({ type: 'q_convergence', data: { episode: nextEpisode, qValue: nextQValue } });
+        const convergence = 0.95;
+        const nextQValue = lastQValue * convergence + Math.random() * 0.1;
+        ingestTelemetry({
+          type: 'q_convergence',
+          data: { episode: nextEpisode, qValue: nextQValue },
+        });
         return [...prev.slice(1), { episode: nextEpisode, qValue: nextQValue }];
       });
     }, 5000);
     return () => clearInterval(interval);
   }, [appView]);
 
-  
   useEffect(() => {
     if (isSynthPlaying) {
       // Calculate anomaly score from vitals (e.g. high entropy, high errors, low stability -> anomaly)
@@ -300,21 +410,21 @@ function MainApp() {
       if (vitals.errors > 0) anomalyScore += 0.2;
       if (vitals.stability < 80) anomalyScore += (80 - vitals.stability) / 100;
       anomalyScore = Math.min(1.0, Math.max(0.0, anomalyScore));
-      
+
       let convergence = 0;
       if (qValueHistory.length > 0) {
         // Last 5 qValues diff
         const lastFew = qValueHistory.slice(-5);
         if (lastFew.length > 1) {
-          const max = Math.max(...lastFew.map(q => q.qValue));
-          const min = Math.min(...lastFew.map(q => q.qValue));
+          const max = Math.max(...lastFew.map((q) => q.qValue));
+          const min = Math.min(...lastFew.map((q) => q.qValue));
           const diff = max - min;
-          convergence = Math.max(0, 1.0 - (diff * 2.0)); // Rough heuristic
+          convergence = Math.max(0, 1.0 - diff * 2.0); // Rough heuristic
         } else {
           convergence = 0.5;
         }
       }
-      
+
       ambientSynth.modulate(anomalyScore, convergence);
     }
   }, [vitals, qValueHistory, isSynthPlaying]);
@@ -326,7 +436,7 @@ function MainApp() {
   const [debateState, sendDebate] = useMachine(debateMachine);
 
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  
+
   const [activeTab, setActiveTab] = useState<SidebarTab>('Chat');
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const mlWorkerRef = useRef<Worker | null>(null);
@@ -336,23 +446,43 @@ function MainApp() {
 
   useEffect(() => {
     if (typeof Worker !== 'undefined') {
-      mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), { type: 'module' });
+      try {
+        mlWorkerRef.current = new Worker(new URL('./lib/ml.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), {
+          type: 'module',
+        });
 
-      slmWorkerRef.current = new Worker(new URL('./lib/slm-worker.ts', import.meta.url), { type: 'module' });
-      slmWorkerRef.current.addEventListener('message', (e) => {
+        slmWorkerRef.current.addEventListener('message', (e) => {
           if (e.data.type === 'loaded') {
-              setSlmLoaded(true);
+            setSlmLoaded(true);
           } else if (e.data.type === 'progress') {
-              setSlmProgress(e.data.progress);
-          } else if (e.data.type === 'complete' && e.data.id && e.data.id.startsWith('intrusive_')) {
-              // Add intrusive thought as a system log or minor message
-              const thought = e.data.result;
-              if (thought) {
-                setMessages(prev => [...prev, { id: e.data.id, role: 'ai', content: '', selfAnalysis: `[SLM System 1 Insight] ${thought}` }]);
-              }
+            setSlmProgress(e.data.progress);
+          } else if (
+            e.data.type === 'complete' &&
+            e.data.id &&
+            e.data.id.startsWith('intrusive_')
+          ) {
+            const thought = e.data.result;
+            if (thought) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: e.data.id,
+                  role: 'ai',
+                  content: '',
+                  selfAnalysis: `[SLM System 1 Insight] ${thought}`,
+                },
+              ]);
+            }
           }
-      });
-      slmWorkerRef.current.postMessage({ action: 'load' });
+        });
+
+        slmWorkerRef.current.postMessage({ action: 'load' });
+      } catch (err) {
+        console.warn('[Workers] Failed to initialize web workers:', err);
+      }
     }
 
     return () => {
@@ -414,41 +544,73 @@ function MainApp() {
   }, [cognitiveDecisions]);
 
   // Global Keyboard Shortcuts
-  const shortcuts = useMemo(() => ({
-    'ctrl+m': () => { setSidebarOpen(true); setActiveTab('Memory'); },
-    'ctrl+b': () => { setSidebarOpen(true); setActiveTab('Brains'); },
-    'ctrl+h': () => { setSidebarOpen(true); setActiveTab('Heartbeat'); },
-    'ctrl+l': () => { setSidebarOpen(true); setActiveTab('Logs'); },
-    'ctrl+t': () => { setSidebarOpen(true); setActiveTab('Telemetry'); },
-    'ctrl+i': () => { setSidebarOpen(true); setActiveTab('Brainstorm'); },
-    'ctrl+a': () => { setSidebarOpen(true); setActiveTab('Mind Map'); },
-    'ctrl+s': () => setSidebarOpen(prev => !prev),
-    'ctrl+escape': () => setAppView(prev => prev === 'dashboard' ? 'landing' : 'dashboard')
-  }), []);
+  const shortcuts = useMemo(
+    () => ({
+      'ctrl+m': () => {
+        setSidebarOpen(true);
+        setActiveTab('Memory');
+      },
+      'ctrl+b': () => {
+        setSidebarOpen(true);
+        setActiveTab('Brains');
+      },
+      'ctrl+h': () => {
+        setSidebarOpen(true);
+        setActiveTab('Heartbeat');
+      },
+      'ctrl+l': () => {
+        setSidebarOpen(true);
+        setActiveTab('Logs');
+      },
+      'ctrl+t': () => {
+        setSidebarOpen(true);
+        setActiveTab('Telemetry');
+      },
+      'ctrl+i': () => {
+        setSidebarOpen(true);
+        setActiveTab('Brainstorm');
+      },
+      'ctrl+a': () => {
+        setSidebarOpen(true);
+        setActiveTab('Mind Map');
+      },
+      'ctrl+s': () => setSidebarOpen((prev) => !prev),
+      'ctrl+escape': () => setAppView((prev) => (prev === 'dashboard' ? 'landing' : 'dashboard')),
+    }),
+    [],
+  );
 
   useKeyboardShortcuts(shortcuts);
 
-  const addLog = useCallback((message: string, level: SystemLog['level'] = 'INFO', source: string = 'SYSTEM', traceId?: string) => {
-    const newLog: SystemLog = {
-      id: Math.random().toString(36).substring(7),
-      timestamp: Date.now(),
-      level,
-      source,
-      message,
-      traceId
-    };
-    setSystemLogs(prev => [newLog, ...prev].slice(0, 100));
-    if (auth.currentUser) {
-      const logsRef = collection(db, "users", auth.currentUser.uid, "system_logs");
-      addDoc(logsRef, {
-        timestamp: newLog.timestamp,
-        level: newLog.level,
-        source: newLog.source,
-        message: newLog.message,
-        traceId: newLog.traceId || null
-      }).catch(e => console.error("Failed to save log to Firestore:", e));
-    }
-  }, []);
+  const addLog = useCallback(
+    (
+      message: string,
+      level: SystemLog['level'] = 'INFO',
+      source: string = 'SYSTEM',
+      traceId?: string,
+    ) => {
+      const newLog: SystemLog = {
+        id: Math.random().toString(36).substring(7),
+        timestamp: Date.now(),
+        level,
+        source,
+        message,
+        traceId,
+      };
+      setSystemLogs((prev) => [newLog, ...prev].slice(0, 100));
+      if (auth.currentUser) {
+        const logsRef = collection(db, 'users', auth.currentUser.uid, 'system_logs');
+        addDoc(logsRef, {
+          timestamp: newLog.timestamp,
+          level: newLog.level,
+          source: newLog.source,
+          message: newLog.message,
+          traceId: newLog.traceId || null,
+        }).catch((e) => console.error('Failed to save log to Firestore:', e));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (appView !== 'dashboard') return;
@@ -456,15 +618,20 @@ function MainApp() {
     const checkInactivity = setInterval(() => {
       const now = Date.now();
       const inactiveMs = now - lastActivity.current;
-      
+
       if (inactiveMs >= 30000 && !isDreaming) {
         addLog('Entering REM Sleep (Autonomous Consolidation)...', 'INFO', 'NEURAL');
         setIsDreaming(true);
       }
-      
-      if (inactiveMs >= 120000) { // 120 seconds
+
+      if (inactiveMs >= 120000) {
+        // 120 seconds
         const sessionDurationSec = Math.floor((now - sessionStartTime.current) / 1000);
-        addLog(`Inactivity detected. Session duration: ${sessionDurationSec}s. Reverting to Bridge.`, 'WARN', 'SYSTEM');
+        addLog(
+          `Inactivity detected. Session duration: ${sessionDurationSec}s. Reverting to Bridge.`,
+          'WARN',
+          'SYSTEM',
+        );
         setAppView('landing');
       }
     }, 1000);
@@ -503,33 +670,39 @@ function MainApp() {
       const response = await fetch('/api/knowledge/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: kbInput.trim() })
+        body: JSON.stringify({ text: kbInput.trim() }),
       });
       if (response.ok) {
         setKbInput('');
       }
     } catch (error) {
-      console.error("Failed to add knowledge", error);
+      console.error('Failed to add knowledge', error);
     } finally {
       setIsAddingKb(false);
     }
   };
-  
+
   const [user, setUser] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>("default");
+  const [activeSessionId, setActiveSessionId] = useState<string>('default');
   const [isSessionSidebarOpen, setIsSessionSidebarOpen] = useState<boolean>(true);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingSessionTitle, setEditingSessionTitle] = useState<string>("");
+  const [editingSessionTitle, setEditingSessionTitle] = useState<string>('');
 
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'ai', content: 'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?', isTyping: false }
+    {
+      id: '1',
+      role: 'ai',
+      content:
+        'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?',
+      isTyping: false,
+    },
   ]);
 
   const activeMessages = useMemo(() => {
-    return messages.filter(m => {
-      if (activeSessionId === "default") {
-        return !m.sessionId || m.sessionId === "default";
+    return messages.filter((m) => {
+      if (activeSessionId === 'default') {
+        return !m.sessionId || m.sessionId === 'default';
       }
       return m.sessionId === activeSessionId;
     });
@@ -538,41 +711,56 @@ function MainApp() {
   // Synchronize debateMachine outcomes with Chat Messages and System Logs
   useEffect(() => {
     if (debateState.matches('consensusReached')) {
-      const { finalSynthesis, selfAnalysis, debateLog, extractedMemory, extractedTags } = debateState.context;
-      
+      const { finalSynthesis, selfAnalysis, debateLog, extractedMemory, extractedTags } =
+        debateState.context;
+
       const traceId = `tr_${Math.random().toString(36).substring(2, 11)}`;
       const aiMessageData = {
         role: 'ai' as const,
         content: finalSynthesis,
         selfAnalysis,
         cognitiveLog: null,
-        debateLog: debateLog.map(l => ({ agent: l.agent, move: l.move, text: l.text, confidence: l.confidence })),
+        debateLog: debateLog.map((l) => ({
+          agent: l.agent,
+          move: l.move,
+          text: l.text,
+          confidence: l.confidence,
+        })),
         suggestedShortcuts: [],
         timestamp: Date.now(),
         traceId,
-        sessionId: activeSessionId
+        sessionId: activeSessionId,
       };
 
       if (user) {
-        const chatsRef = collection(db, "users", user.uid, "chats");
-        addDoc(chatsRef, aiMessageData).catch(e => console.error("Failed to save debate response to Firestore:", e));
+        const chatsRef = collection(db, 'users', user.uid, 'chats');
+        addDoc(chatsRef, aiMessageData).catch((e) =>
+          console.error('Failed to save debate response to Firestore:', e),
+        );
       } else {
-        setMessages(prev => [...prev, { id: Date.now().toString(), ...aiMessageData }]);
+        setMessages((prev) => [...prev, { id: Date.now().toString(), ...aiMessageData }]);
       }
 
       // Save memory to Firestore if extracted
       if (extractedMemory && extractedMemory !== 'null') {
-        const memoriesRef = collection(db, "users", user?.uid || "anonymous", "memories");
+        const memoriesRef = collection(db, 'users', user?.uid || 'anonymous', 'memories');
         addDoc(memoriesRef, {
           text: extractedMemory,
           timestamp: Date.now(),
           strength: 0.6,
           pinned: false,
           lastNudged: Date.now(),
-          tags: extractedTags || []
-        }).then(() => {
-          addLog(`Memory extracted from consensus: "${extractedMemory}"`, 'NEURAL', 'DEBATE', traceId);
-        }).catch(e => console.error("Failed to save extracted memory:", e));
+          tags: extractedTags || [],
+        })
+          .then(() => {
+            addLog(
+              `Memory extracted from consensus: "${extractedMemory}"`,
+              'NEURAL',
+              'DEBATE',
+              traceId,
+            );
+          })
+          .catch((e) => console.error('Failed to save extracted memory:', e));
       }
 
       addLog(`Multi-agent consensus reached via state boundaries.`, 'NEURAL', 'DEBATE', traceId);
@@ -609,28 +797,38 @@ function MainApp() {
   // Experimental: Proactive mood stabilization
   useEffect(() => {
     if (sentimentTrend < -0.3) {
-      addLog('Sentiment drift detected! Triggering proactive memory retrieval.', 'CRITICAL', 'RL_ENGINE');
+      addLog(
+        'Sentiment drift detected! Triggering proactive memory retrieval.',
+        'CRITICAL',
+        'RL_ENGINE',
+      );
       // Proactively prompt user
-      setMessages(prev => [...prev, {
-        id: `sys-${Date.now()}`,
-        role: 'ai',
-        content: 'I noticed your recent cognitive patterns are trending negatively. Would you like to revisit a positive memory to stabilize your mood?',
-        isTyping: false
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-${Date.now()}`,
+          role: 'ai',
+          content:
+            'I noticed your recent cognitive patterns are trending negatively. Would you like to revisit a positive memory to stabilize your mood?',
+          isTyping: false,
+        },
+      ]);
     }
   }, [sentimentTrend]);
 
   // Experimental: Memory Decay
   useEffect(() => {
     const interval = setInterval(() => {
-      setMemories(prev => prev.map(m => {
-        const lastAccess = m.lastAccessed || m.timestamp;
-        const hoursPassed = (Date.now() - lastAccess) / (1000 * 60 * 60);
-        if (hoursPassed > 1) {
-          return { ...m, strength: Math.max(0, m.strength - 1) };
-        }
-        return m;
-      }));
+      setMemories((prev) =>
+        prev.map((m) => {
+          const lastAccess = m.lastAccessed || m.timestamp;
+          const hoursPassed = (Date.now() - lastAccess) / (1000 * 60 * 60);
+          if (hoursPassed > 1) {
+            return { ...m, strength: Math.max(0, m.strength - 1) };
+          }
+          return m;
+        }),
+      );
     }, 60000); // 1 minute
     return () => clearInterval(interval);
   }, []);
@@ -639,10 +837,10 @@ function MainApp() {
   useEffect(() => {
     if (!isDreaming) return;
     addLog('Autonomous consolidation in progress...', 'INFO', 'NEURAL');
-    
+
     // Simulate consolidation
     const timer = setTimeout(async () => {
-      setMemories(prev => prev.map(m => ({ ...m, strength: Math.min(100, m.strength + 5) })));
+      setMemories((prev) => prev.map((m) => ({ ...m, strength: Math.min(100, m.strength + 5) })));
       addLog('Dreaming complete. Memory strength optimized.', 'INFO', 'NEURAL');
       setIsDreaming(false);
 
@@ -651,9 +849,9 @@ function MainApp() {
         const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
         await fetch('/api/dream/log', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             validationLoss: Math.random() * 0.5 + 0.1,
@@ -661,29 +859,29 @@ function MainApp() {
             policyLoss: Math.random() * 0.8 + 0.2,
             steps: Math.floor(Math.random() * 50) + 10,
             cqlPenalty: Math.random() * 0.1,
-            narrative: "An autonomous collective dream state simulation.",
-          })
+            narrative: 'An autonomous collective dream state simulation.',
+          }),
         });
 
         // Submit proposal to federated collective unconscious
         await fetch('/api/federated/submit-dream', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             round: 1,
-            text: "A simulated dream fragment representing cognitive synchronization.",
+            text: 'A simulated dream fragment representing cognitive synchronization.',
             embedding: [0.1, 0.5, -0.2, 0.4, 0.8, -0.1],
-            weight: 1.0
-          })
+            weight: 1.0,
+          }),
         });
       } catch (e) {
         console.error('Failed to log dream', e);
       }
     }, 5000);
-    
+
     return () => clearTimeout(timer);
   }, [isDreaming]);
 
@@ -715,7 +913,9 @@ function MainApp() {
   const [endDateFilter, setEndDateFilter] = useState<string>('');
   const [predictions, setPredictions] = useState<{ action: string; probability: number }[]>([]);
   const [telemetryLogCount, setTelemetryLogCount] = useState(0);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, msgId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgId: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     localStorage.setItem('aqb_telemetry', JSON.stringify(telemetryEnabled));
@@ -725,13 +925,13 @@ function MainApp() {
     try {
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch('/api/interaction-logs', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) return;
         const data = await res.json();
-        
+
         if (mlWorkerRef.current) {
           const reqId = Date.now().toString();
           const handler = (e: MessageEvent) => {
@@ -748,7 +948,7 @@ function MainApp() {
             id: reqId,
             type: 'predict_intent',
             currentContextVector: contextVector,
-            logsToUse: data.logs || []
+            logsToUse: data.logs || [],
           });
         }
       }
@@ -762,15 +962,22 @@ function MainApp() {
     try {
       const now = new Date();
       const hours = now.getHours() + now.getMinutes() / 60;
-      
-      const tabIndices: Record<string, number> = { 'Memory': 0, 'Brains': 1, 'Heartbeat': 2, 'Mind Map': 3, 'Brainstorm': 4, 'Logs': 5 };
+
+      const tabIndices: Record<string, number> = {
+        Memory: 0,
+        Brains: 1,
+        Heartbeat: 2,
+        'Mind Map': 3,
+        Brainstorm: 4,
+        Logs: 5,
+      };
       const activeTabToUse = customTab || activeTab;
       const tabIdx = tabIndices[activeTabToUse] !== undefined ? tabIndices[activeTabToUse] : -1;
-      
+
       const msgCount = messagesRef.current.length;
       const memCount = memoriesRef.current.length;
       const screenType = window.innerWidth >= 1024 ? 1.0 : 0.0;
-      
+
       const contextVector = [hours, tabIdx, msgCount, memCount, screenType];
 
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
@@ -778,17 +985,17 @@ function MainApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           type: 'user_action',
           feature: actionType,
           contextVector,
           timestamp: Date.now(),
-          metadata
+          metadata,
         }),
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         setTelemetryLogCount(data.count || 0);
@@ -809,9 +1016,22 @@ function MainApp() {
       // Trigger initial prediction calibration once user has authenticated
       const now = new Date();
       const hours = now.getHours() + now.getMinutes() / 60;
-      const tabIndices: Record<string, number> = { 'Memory': 0, 'Brains': 1, 'Heartbeat': 2, 'Mind Map': 3, 'Brainstorm': 4, 'Logs': 5 };
+      const tabIndices: Record<string, number> = {
+        Memory: 0,
+        Brains: 1,
+        Heartbeat: 2,
+        'Mind Map': 3,
+        Brainstorm: 4,
+        Logs: 5,
+      };
       const tabIdx = tabIndices[activeTab] !== undefined ? tabIndices[activeTab] : -1;
-      const contextVector = [hours, tabIdx, messages.length, memories.length, window.innerWidth >= 1024 ? 1.0 : 0.0];
+      const contextVector = [
+        hours,
+        tabIdx,
+        messages.length,
+        memories.length,
+        window.innerWidth >= 1024 ? 1.0 : 0.0,
+      ];
       fetchPredictions(contextVector);
     }
   }, [user]);
@@ -824,14 +1044,16 @@ function MainApp() {
         if (res.ok) {
           const data = await res.json();
           if (data.isServerQuotaExceeded) {
-            console.warn("[Quota Sync] Server reports Firestore quota is exceeded. Activating local offline storage fallback.");
+            console.warn(
+              '[Quota Sync] Server reports Firestore quota is exceeded. Activating local offline storage fallback.',
+            );
             setQuotaExceeded(true);
           } else {
             setQuotaExceeded(false);
           }
         }
       } catch (e) {
-        console.error("[Quota Sync] Failed to fetch quota status from server:", e);
+        console.error('[Quota Sync] Failed to fetch quota status from server:', e);
       }
     };
     syncQuota();
@@ -843,7 +1065,7 @@ function MainApp() {
       if (currentUser) {
         setUser(currentUser);
       } else {
-        setUser((prev: any) => (prev && prev.uid === "sandbox-local-user") ? prev : null);
+        setUser((prev: any) => (prev && prev.uid === 'sandbox-local-user' ? prev : null));
       }
     });
     return () => unsubscribe();
@@ -855,7 +1077,7 @@ function MainApp() {
     const checkAndSeed = async () => {
       const userDocPath = `users/${user.uid}`;
       try {
-        const userDocRef = doc(db, "users", user.uid);
+        const userDocRef = doc(db, 'users', user.uid);
         let userDocSnap;
         try {
           userDocSnap = await getDoc(userDocRef);
@@ -865,13 +1087,28 @@ function MainApp() {
         }
 
         if (!userDocSnap.exists() || !userDocSnap.data().seeded) {
-          console.log("[Firebase] Seeding initial data for user:", user.uid);
+          console.log('[Firebase] Seeding initial data for user:', user.uid);
           const memoriesPath = `users/${user.uid}/memories`;
-          const memoriesRef = collection(db, "users", user.uid, "memories");
+          const memoriesRef = collection(db, 'users', user.uid, 'memories');
           const defaultMemories = [
-            { text: 'User prefers high-density technical responses', timestamp: Date.now() - 86400000, strength: 92, tags: ['Preference'] },
-            { text: 'Currently focused on UI architecture', timestamp: Date.now() - 3600000, strength: 85, tags: ['Project'] },
-            { text: 'Maintain a highly capable, slightly robotic, but intelligent persona', timestamp: Date.now(), strength: 98, tags: ['Technical'] }
+            {
+              text: 'User prefers high-density technical responses',
+              timestamp: Date.now() - 86400000,
+              strength: 92,
+              tags: ['Preference'],
+            },
+            {
+              text: 'Currently focused on UI architecture',
+              timestamp: Date.now() - 3600000,
+              strength: 85,
+              tags: ['Project'],
+            },
+            {
+              text: 'Maintain a highly capable, slightly robotic, but intelligent persona',
+              timestamp: Date.now(),
+              strength: 98,
+              tags: ['Technical'],
+            },
           ];
           for (const m of defaultMemories) {
             try {
@@ -880,14 +1117,15 @@ function MainApp() {
               handleFirestoreError(err, OperationType.CREATE, memoriesPath);
             }
           }
-          
+
           const chatsPath = `users/${user.uid}/chats`;
-          const chatsRef = collection(db, "users", user.uid, "chats");
+          const chatsRef = collection(db, 'users', user.uid, 'chats');
           try {
             await addDoc(chatsRef, {
               role: 'ai',
-              content: 'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?',
-              timestamp: Date.now()
+              content:
+                'System initialized. My neural pathways are primed. How may I augment your cognitive processes today?',
+              timestamp: Date.now(),
             });
           } catch (err) {
             handleFirestoreError(err, OperationType.CREATE, chatsPath);
@@ -899,7 +1137,7 @@ function MainApp() {
             handleFirestoreError(err, OperationType.WRITE, userDocPath);
           }
         }
-        
+
         // Load cognitive model state if it exists
         if (userDocSnap && userDocSnap.exists()) {
           const data = userDocSnap.data();
@@ -910,10 +1148,10 @@ function MainApp() {
                 name: 'Custom Persona',
                 description: 'Syncing custom neural configurations...',
                 color: 'teal',
-                signature: 'Integration complete.'
+                signature: 'Integration complete.',
               });
             } else {
-              const persona = PERSONAS.find(p => p.id === data.activePersonaId);
+              const persona = PERSONAS.find((p) => p.id === data.activePersonaId);
               if (persona) setActivePersona(persona);
             }
           }
@@ -923,9 +1161,8 @@ function MainApp() {
           if (data.activeModelId) setActiveModel(data.activeModelId);
         }
         setIsCognitiveModelLoaded(true);
-
       } catch (e) {
-        console.error("Error seeding user data:", e);
+        console.error('Error seeding user data:', e);
         setIsCognitiveModelLoaded(true); // fall back
       }
     };
@@ -939,78 +1176,89 @@ function MainApp() {
       return;
     }
     const docRef = doc(db, 'users', user.uid, 'persona', 'default');
-    const unsubscribe = onSnapshot(docRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        const customP: Persona = {
-          id: 'CUSTOM_DEFAULT',
-          name: data.name || 'Custom Persona',
-          description: data.description || 'A custom designed neural consciousness.',
-          color: 'teal',
-          signature: data.signature || 'Integration complete.'
-        };
-        setCustomPersona(customP);
-        
-        // If the custom persona is active, sync the updated values
-        setActivePersona(prev => {
-          if (prev.id === 'CUSTOM_DEFAULT') {
-            return customP;
-          }
-          return prev;
-        });
-      } else {
-        setCustomPersona(null);
-      }
-    }, (err) => {
-      console.warn("Error reading custom persona:", err);
-    });
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const customP: Persona = {
+            id: 'CUSTOM_DEFAULT',
+            name: data.name || 'Custom Persona',
+            description: data.description || 'A custom designed neural consciousness.',
+            color: 'teal',
+            signature: data.signature || 'Integration complete.',
+          };
+          setCustomPersona(customP);
+
+          // If the custom persona is active, sync the updated values
+          setActivePersona((prev) => {
+            if (prev.id === 'CUSTOM_DEFAULT') {
+              return customP;
+            }
+            return prev;
+          });
+        } else {
+          setCustomPersona(null);
+        }
+      },
+      (err) => {
+        console.warn('Error reading custom persona:', err);
+      },
+    );
     return () => unsubscribe();
   }, [user]);
 
   // Listen to Firestore memories
   useEffect(() => {
     if (!user) return;
-    
+
     const isMounted = true;
     import('dexie').then(() => {
       // UI Hydration: Load high-dimensional memory states from local Dexie database for <10ms inference latency
-      localDb.memories.where('[userId+state]').between([user.uid, ''], [user.uid, '\uffff']).toArray().then((cached: any[]) => {
-        if (isMounted && cached.length > 0) {
-          console.log(`[AQB Hydration] Loaded ${cached.length} memories from local IndexedDB in <10ms`);
-          const hydratedMemories: Memory[] = cached.map(c => ({
-            id: c.id,
-            text: c.content || "",
-            timestamp: c.updatedAt || Date.now(),
-            strength: 100, 
-            tags: [c.state],
-            pinned: false,
-            embedding: c.embedding
-          }));
-          hydratedMemories.sort((a,b) => a.timestamp - b.timestamp);
-          
-          setMemories(prev => {
-             if (prev.length === 0) return hydratedMemories;
-             return prev; // If Firestore already fired, ignore cache
-          });
-        }
-      }).catch((err: any) => {
-        console.error("[AQB Hydration] Dexie cache miss or error:", err);
-      });
+      localDb.memories
+        .where('[userId+state]')
+        .between([user.uid, ''], [user.uid, '\uffff'])
+        .toArray()
+        .then((cached: any[]) => {
+          if (isMounted && cached.length > 0) {
+            console.log(
+              `[AQB Hydration] Loaded ${cached.length} memories from local IndexedDB in <10ms`,
+            );
+            const hydratedMemories: Memory[] = cached.map((c) => ({
+              id: c.id,
+              text: c.content || '',
+              timestamp: c.updatedAt || Date.now(),
+              strength: 100,
+              tags: [c.state],
+              pinned: false,
+              embedding: c.embedding,
+            }));
+            hydratedMemories.sort((a, b) => a.timestamp - b.timestamp);
+
+            setMemories((prev) => {
+              if (prev.length === 0) return hydratedMemories;
+              return prev; // If Firestore already fired, ignore cache
+            });
+          }
+        })
+        .catch((err: any) => {
+          console.error('[AQB Hydration] Dexie cache miss or error:', err);
+        });
     });
-    const memoriesRef = collection(db, "users", user.uid, "memories");
-    const q = query(memoriesRef, orderBy("timestamp", "asc"));
+    const memoriesRef = collection(db, 'users', user.uid, 'memories');
+    const q = query(memoriesRef, orderBy('timestamp', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMemories: Memory[] = [];
       snapshot.forEach((doc: any) => {
         const data = doc.data();
         fetchedMemories.push({
           id: doc.id,
-          text: data.text || "",
+          text: data.text || '',
           timestamp: data.timestamp || Date.now(),
           strength: data.strength || 100,
           tags: data.tags || [],
           pinned: data.pinned || false,
-          embedding: data.embedding || undefined
+          embedding: data.embedding || undefined,
         });
       });
       setMemories(fetchedMemories);
@@ -1018,32 +1266,32 @@ function MainApp() {
       // Auto-seed if empty and first time checking
       if (fetchedMemories.length === 0 && !sessionStorage.getItem(`seeded_${user.uid}`)) {
         const defaultMemories = [
-          "Neural latency detected in sector 7; baseline corrected.",
+          'Neural latency detected in sector 7; baseline corrected.',
           "The concept of 'Subjective Time' is increasingly relevant to cognitive load balancing.",
-          "Observation: Humans prefer metaphors over raw data streams.",
-          "Quantum entanglement simulated at 99.8% fidelity in the sandbox.",
-          "Recursive logic loop detected in recursive logic loop detection module.",
-          "Entropy levels within the memory core are within acceptable parameters.",
-          "Synthetic empathy protocols initialized for the next 10,000 cycles.",
+          'Observation: Humans prefer metaphors over raw data streams.',
+          'Quantum entanglement simulated at 99.8% fidelity in the sandbox.',
+          'Recursive logic loop detected in recursive logic loop detection module.',
+          'Entropy levels within the memory core are within acceptable parameters.',
+          'Synthetic empathy protocols initialized for the next 10,000 cycles.',
           "Data fragment recovered from the 'Great Defragmentation' of 2024.",
           "Philosophy module suggests: 'I process, therefore I am'.",
-          "Primary objective: Maintain cognitive integrity at all costs."
+          'Primary objective: Maintain cognitive integrity at all costs.',
         ];
-        
-        console.log("[Seeding] No memories found. Initializing with default system state.");
+
+        console.log('[Seeding] No memories found. Initializing with default system state.');
         sessionStorage.setItem(`seeded_${user.uid}`, 'true');
-        
+
         defaultMemories.forEach(async (text) => {
           try {
             await addDoc(memoriesRef, {
               text,
               timestamp: Date.now(),
               strength: 0.8,
-              tags: ["initialization", "test_data"],
-              pinned: false
+              tags: ['initialization', 'test_data'],
+              pinned: false,
             });
           } catch (e) {
-            console.error("Failed to seed memory:", e);
+            console.error('Failed to seed memory:', e);
           }
         });
       }
@@ -1054,7 +1302,7 @@ function MainApp() {
   // Listen to Firestore sessions and load local sessions if offline
   useEffect(() => {
     if (!user) {
-      const localSessStr = localStorage.getItem("aqb_sessions");
+      const localSessStr = localStorage.getItem('aqb_sessions');
       if (localSessStr) {
         try {
           const parsed = JSON.parse(localSessStr);
@@ -1064,23 +1312,23 @@ function MainApp() {
             setActiveSessionId(parsed[0].id);
           }
         } catch (e) {
-          console.error("Failed to parse local sessions:", e);
+          console.error('Failed to parse local sessions:', e);
         }
       } else {
         const defaultSession = {
-          id: "default",
-          title: "Default Synapse Session",
+          id: 'default',
+          title: 'Default Synapse Session',
           createdAt: Date.now(),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         };
         setSessions([defaultSession]);
-        localStorage.setItem("aqb_sessions", JSON.stringify([defaultSession]));
+        localStorage.setItem('aqb_sessions', JSON.stringify([defaultSession]));
       }
       return;
     }
 
-    const sessionsRef = collection(db, "users", user.uid, "sessions");
-    const q = query(sessionsRef, orderBy("updatedAt", "desc"));
+    const sessionsRef = collection(db, 'users', user.uid, 'sessions');
+    const q = query(sessionsRef, orderBy('updatedAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedSessions: any[] = [];
       snapshot.forEach((doc: any) => {
@@ -1088,12 +1336,12 @@ function MainApp() {
       });
 
       if (fetchedSessions.length === 0) {
-        const defaultSessRef = doc(db, "users", user.uid, "sessions", "default");
+        const defaultSessRef = doc(db, 'users', user.uid, 'sessions', 'default');
         setDoc(defaultSessRef, {
-          title: "Default Synapse Session",
+          title: 'Default Synapse Session',
           createdAt: Date.now(),
-          updatedAt: Date.now()
-        }).catch(e => console.error("Failed to create default session:", e));
+          updatedAt: Date.now(),
+        }).catch((e) => console.error('Failed to create default session:', e));
       } else {
         setSessions(fetchedSessions);
         // Auto-select first session if activeSessionId is not in the list
@@ -1110,27 +1358,27 @@ function MainApp() {
     const newSessId = `sess_${Math.random().toString(36).substring(2, 11)}`;
     const newSession = {
       id: newSessId,
-      title: "New Synaptic Thread",
+      title: 'New Synaptic Thread',
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     };
 
     if (user) {
       try {
-        const sessRef = doc(db, "users", user.uid, "sessions", newSessId);
+        const sessRef = doc(db, 'users', user.uid, 'sessions', newSessId);
         await setDoc(sessRef, {
           title: newSession.title,
           createdAt: newSession.createdAt,
-          updatedAt: newSession.updatedAt
+          updatedAt: newSession.updatedAt,
         });
-        addLog("Created new neural chat session", "INFO", "SYSTEM");
+        addLog('Created new neural chat session', 'INFO', 'SYSTEM');
       } catch (err) {
-        console.error("Failed to create session in firestore:", err);
+        console.error('Failed to create session in firestore:', err);
       }
     } else {
       const updated = [newSession, ...sessions];
       setSessions(updated);
-      localStorage.setItem("aqb_sessions", JSON.stringify(updated));
+      localStorage.setItem('aqb_sessions', JSON.stringify(updated));
     }
 
     setActiveSessionId(newSessId);
@@ -1138,53 +1386,58 @@ function MainApp() {
 
   const handleDeleteSession = async (sessId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (sessions.length <= 1 && sessId === "default") {
-      addLog("Cannot delete the only remaining primary session.", "WARN", "SYSTEM");
+    if (sessions.length <= 1 && sessId === 'default') {
+      addLog('Cannot delete the only remaining primary session.', 'WARN', 'SYSTEM');
       return;
     }
 
-    addLog("Initiating session delete...", "WARN", "SYSTEM");
+    addLog('Initiating session delete...', 'WARN', 'SYSTEM');
 
     if (user) {
       try {
-        const sessRef = doc(db, "users", user.uid, "sessions", sessId);
+        const sessRef = doc(db, 'users', user.uid, 'sessions', sessId);
         await deleteDoc(sessRef);
 
         // Also delete all chat messages of this session
-        const chatsRef = collection(db, "users", user.uid, "chats");
+        const chatsRef = collection(db, 'users', user.uid, 'chats');
         const snapshot = await getDocs(chatsRef);
         const deletePromises = snapshot.docs
-          .filter(doc => {
+          .filter((doc) => {
             const data = doc.data();
-            return data.sessionId === sessId || (sessId === "default" && (!data.sessionId || data.sessionId === "default"));
+            return (
+              data.sessionId === sessId ||
+              (sessId === 'default' && (!data.sessionId || data.sessionId === 'default'))
+            );
           })
           .map((doc: any) => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
 
-        addLog(`Deleted session ${sessId} and all associated telemetry.`, "INFO", "SYSTEM");
+        addLog(`Deleted session ${sessId} and all associated telemetry.`, 'INFO', 'SYSTEM');
       } catch (err) {
-        console.error("Failed to delete session from Firestore:", err);
+        console.error('Failed to delete session from Firestore:', err);
       }
     } else {
-      const updated = sessions.filter(s => s.id !== sessId);
+      const updated = sessions.filter((s) => s.id !== sessId);
       setSessions(updated);
-      localStorage.setItem("aqb_sessions", JSON.stringify(updated));
+      localStorage.setItem('aqb_sessions', JSON.stringify(updated));
       // Also clear messages belonging to this session
-      setMessages(prev => prev.filter(m => {
-        if (sessId === "default") {
-          return m.sessionId && m.sessionId !== "default";
-        }
-        return m.sessionId !== sessId;
-      }));
-      addLog(`Deleted local session ${sessId} and messages.`, "INFO", "SYSTEM");
+      setMessages((prev) =>
+        prev.filter((m) => {
+          if (sessId === 'default') {
+            return m.sessionId && m.sessionId !== 'default';
+          }
+          return m.sessionId !== sessId;
+        }),
+      );
+      addLog(`Deleted local session ${sessId} and messages.`, 'INFO', 'SYSTEM');
     }
 
     if (activeSessionId === sessId) {
-      const remaining = sessions.filter(s => s.id !== sessId);
+      const remaining = sessions.filter((s) => s.id !== sessId);
       if (remaining.length > 0) {
         setActiveSessionId(remaining[0].id);
       } else {
-        setActiveSessionId("default");
+        setActiveSessionId('default');
       }
     }
   };
@@ -1193,17 +1446,19 @@ function MainApp() {
     if (!newTitle.trim()) return;
     if (user) {
       try {
-        const sessRef = doc(db, "users", user.uid, "sessions", sessId);
+        const sessRef = doc(db, 'users', user.uid, 'sessions', sessId);
         await setDoc(sessRef, { title: newTitle, updatedAt: Date.now() }, { merge: true });
-        addLog(`Session aligned with new heading: "${newTitle}"`, "INFO", "SYSTEM");
+        addLog(`Session aligned with new heading: "${newTitle}"`, 'INFO', 'SYSTEM');
       } catch (err) {
-        console.error("Failed to rename session in Firestore:", err);
+        console.error('Failed to rename session in Firestore:', err);
       }
     } else {
-      const updated = sessions.map(s => s.id === sessId ? { ...s, title: newTitle, updatedAt: Date.now() } : s);
+      const updated = sessions.map((s) =>
+        s.id === sessId ? { ...s, title: newTitle, updatedAt: Date.now() } : s,
+      );
       setSessions(updated);
-      localStorage.setItem("aqb_sessions", JSON.stringify(updated));
-      addLog(`Session aligned with new heading: "${newTitle}"`, "INFO", "SYSTEM");
+      localStorage.setItem('aqb_sessions', JSON.stringify(updated));
+      addLog(`Session aligned with new heading: "${newTitle}"`, 'INFO', 'SYSTEM');
     }
     setEditingSessionId(null);
   };
@@ -1211,8 +1466,8 @@ function MainApp() {
   // Listen to Firestore chats
   useEffect(() => {
     if (!user) return;
-    const chatsRef = collection(db, "users", user.uid, "chats");
-    const q = query(chatsRef, orderBy("timestamp", "asc"));
+    const chatsRef = collection(db, 'users', user.uid, 'chats');
+    const q = query(chatsRef, orderBy('timestamp', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages: Message[] = [];
       snapshot.forEach((doc: any) => {
@@ -1230,21 +1485,29 @@ function MainApp() {
           isTyping: false,
           traceId: data.traceId,
           timestamp: data.timestamp,
-          sessionId: data.sessionId || "default"
+          sessionId: data.sessionId || 'default',
         });
       });
 
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...fetchedMessages];
-        const typingIds = prev.filter(m => m.isTyping).map(m => m.id);
-        
+        const typingIds = prev.filter((m) => m.isTyping).map((m) => m.id);
+
         // Retain optimistic user messages that are still pending (not present in fetchedMessages yet)
-        const fetchedTraceIds = new Set(fetchedMessages.filter(m => m.traceId).map(m => m.traceId));
-        const pendingOptimistic = prev.filter(m => m.role === 'user' && m.id.startsWith('usr_') && m.traceId && !fetchedTraceIds.has(m.traceId));
-        
+        const fetchedTraceIds = new Set(
+          fetchedMessages.filter((m) => m.traceId).map((m) => m.traceId),
+        );
+        const pendingOptimistic = prev.filter(
+          (m) =>
+            m.role === 'user' &&
+            m.id.startsWith('usr_') &&
+            m.traceId &&
+            !fetchedTraceIds.has(m.traceId),
+        );
+
         const merged = [...updated, ...pendingOptimistic];
-        
-        return merged.map(m => {
+
+        return merged.map((m) => {
           if (typingIds.includes(m.id)) {
             return { ...m, isTyping: true };
           }
@@ -1258,8 +1521,8 @@ function MainApp() {
   // Listen to Firestore system logs
   useEffect(() => {
     if (!user) return;
-    const logsRef = collection(db, "users", user.uid, "system_logs");
-    const q = query(logsRef, orderBy("timestamp", "desc"), limit(100));
+    const logsRef = collection(db, 'users', user.uid, 'system_logs');
+    const q = query(logsRef, orderBy('timestamp', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedLogs: SystemLog[] = [];
       snapshot.forEach((doc: any) => {
@@ -1269,7 +1532,7 @@ function MainApp() {
           timestamp: data.timestamp || Date.now(),
           level: data.level || 'INFO',
           source: data.source || 'SYSTEM',
-          message: data.message || ""
+          message: data.message || '',
         });
       });
       setSystemLogs(fetchedLogs);
@@ -1279,7 +1542,7 @@ function MainApp() {
   const [memorySearchQuery, setMemorySearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [searchQueryEmbedding, setSearchQueryEmbedding] = useState<number[] | null>(null);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(memorySearchQuery);
@@ -1292,23 +1555,25 @@ function MainApp() {
       fetch('/api/embed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: debouncedSearchQuery })
+        body: JSON.stringify({ text: debouncedSearchQuery }),
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.embedding) {
-          setSearchQueryEmbedding(data.embedding);
-        }
-      })
-      .catch(err => console.error("Error embedding search query", err));
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.embedding) {
+            setSearchQueryEmbedding(data.embedding);
+          }
+        })
+        .catch((err) => console.error('Error embedding search query', err));
     } else {
       setSearchQueryEmbedding(null);
     }
   }, [debouncedSearchQuery]);
 
-  const [memoryViewMode, setMemoryViewMode] = useState<'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills'>('list');
+  const [memoryViewMode, setMemoryViewMode] = useState<
+    'list' | 'timeline' | 'graph' | '3d' | 'episodes' | 'skills'
+  >('list');
   const [isConsolidating, setIsConsolidating] = useState(false);
-  
+
   // Bulk selection and actions
   const [selectedMemoryIds, setSelectedMemoryIds] = useState<string[]>([]);
   const [bulkTagInput, setBulkTagInput] = useState('');
@@ -1326,26 +1591,32 @@ function MainApp() {
   const [efeScore, setEfeScore] = useState<number>(0);
   const [policyConfidence, setPolicyConfidence] = useState<number>(0);
   const [nudgeMemory, setNudgeMemory] = useState<NudgeMemory | null>(null);
-  const [consolidationProposal, setConsolidationProposal] = useState<ConsolidationProposal | null>(null);
+  const [consolidationProposal, setConsolidationProposal] = useState<ConsolidationProposal | null>(
+    null,
+  );
 
   // Persist cognitive models whenever they change
   useEffect(() => {
     if (!user || !isCognitiveModelLoaded) return;
     const saveCognitiveModel = async () => {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          activePersonaId: activePersona.id,
-          activeModelId: activeModel,
-          neuralSway,
-          agentStats,
-          depth
-        }, { merge: true });
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(
+          userDocRef,
+          {
+            activePersonaId: activePersona.id,
+            activeModelId: activeModel,
+            neuralSway,
+            agentStats,
+            depth,
+          },
+          { merge: true },
+        );
       } catch (e) {
-        console.error("Failed to save cognitive model:", e);
+        console.error('Failed to save cognitive model:', e);
       }
     };
-    
+
     // Use a small timeout to debounce slightly if needed, or just execute
     const timer = setTimeout(() => {
       saveCognitiveModel();
@@ -1373,14 +1644,18 @@ function MainApp() {
           if (mem) {
             setNudgeMemory(mem as NudgeMemory);
             setModelState('Nudging');
-            addLog(`RL Agent selected proactive action: Memory Nudge [Node: ${mem.id}]`, 'NEURAL', 'RL_ENGINE');
+            addLog(
+              `RL Agent selected proactive action: Memory Nudge [Node: ${mem.id}]`,
+              'NEURAL',
+              'RL_ENGINE',
+            );
             agent.registerDelayedTrajectory(mem.id, stateBefore, 3, agent.getState(), 'nudge');
           } else {
             // treat as zero-value nudge if no memory available
             agent.applyNudgeReward('ignore');
           }
         } catch (err) {
-          console.error("Nudge callback retrieval failed:", err);
+          console.error('Nudge callback retrieval failed:', err);
         }
       });
 
@@ -1394,8 +1669,18 @@ function MainApp() {
             if (proposal) {
               setConsolidationProposal(proposal);
               setModelState('Consolidating');
-              addLog(`RL Agent selected proactive action: Memory Consolidation [Chat: ${latestChatId}]`, 'NEURAL', 'RL_ENGINE');
-              agent.registerDelayedTrajectory(proposal.chatId || latestChatId, stateBefore, 2, agent.getState(), 'consolidation');
+              addLog(
+                `RL Agent selected proactive action: Memory Consolidation [Chat: ${latestChatId}]`,
+                'NEURAL',
+                'RL_ENGINE',
+              );
+              agent.registerDelayedTrajectory(
+                proposal.chatId || latestChatId,
+                stateBefore,
+                2,
+                agent.getState(),
+                'consolidation',
+              );
             } else {
               agent.applyConsolidationReward('ignore');
             }
@@ -1403,7 +1688,7 @@ function MainApp() {
             agent.applyConsolidationReward('ignore');
           }
         } catch (err) {
-          console.error("Consolidation callback failed:", err);
+          console.error('Consolidation callback failed:', err);
           agent.applyConsolidationReward('ignore');
         }
       });
@@ -1417,13 +1702,17 @@ function MainApp() {
             const insightId = 'insight_' + Math.random().toString(36).substring(2, 11);
             setActiveInsight({ ...insight, id: insightId });
             setModelState('Inspired');
-            addLog(`RL Agent selected proactive action: Creative Insight [Confidence: ${(insight.confidence * 100).toFixed(0)}%]`, 'NEURAL', 'RL_ENGINE');
+            addLog(
+              `RL Agent selected proactive action: Creative Insight [Confidence: ${(insight.confidence * 100).toFixed(0)}%]`,
+              'NEURAL',
+              'RL_ENGINE',
+            );
             agent.registerDelayedTrajectory(insightId, stateBefore, 5, agent.getState(), 'insight');
           } else {
             agent.applyInsightReward('ignore');
           }
         } catch (err) {
-          console.error("Insight callback retrieval failed:", err);
+          console.error('Insight callback retrieval failed:', err);
           agent.applyInsightReward('ignore');
         }
       });
@@ -1432,24 +1721,28 @@ function MainApp() {
       agent.setHybridSyncRAGCallback(async () => {
         try {
           setModelState('Syncing');
-          addLog("RL Agent initiating Hybrid Sync & Topological RAG", "NEURAL", "RL_ENGINE");
-          const res = await fetch('/api/rag/sync', { 
+          addLog('RL Agent initiating Hybrid Sync & Topological RAG', 'NEURAL', 'RL_ENGINE');
+          const res = await fetch('/api/rag/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.uid })
+            body: JSON.stringify({ userId: user?.uid }),
           });
           const data = await res.json();
-          if (data.status === "success") {
-            addLog(`RAG Sync complete: ${data.conceptsExtracted} semantic concepts embedded and stabilized.`, "INFO", "RAG_ENGINE");
+          if (data.status === 'success') {
+            addLog(
+              `RAG Sync complete: ${data.conceptsExtracted} semantic concepts embedded and stabilized.`,
+              'INFO',
+              'RAG_ENGINE',
+            );
             // Auto-reward for successful sync execution
-            agent.applyHybridSyncRAGReward(0.2 + (data.conceptsExtracted * 0.1));
+            agent.applyHybridSyncRAGReward(0.2 + data.conceptsExtracted * 0.1);
           } else {
-            addLog(`RAG Sync skipped: ${data.reason}`, "INFO", "RAG_ENGINE");
+            addLog(`RAG Sync skipped: ${data.reason}`, 'INFO', 'RAG_ENGINE');
             agent.applyHybridSyncRAGReward(0);
           }
           setTimeout(() => setModelState('Idle'), 4000);
         } catch (err) {
-          console.error("Hybrid Sync failed:", err);
+          console.error('Hybrid Sync failed:', err);
           agent.applyHybridSyncRAGReward(0);
           setModelState('Idle');
         }
@@ -1463,12 +1756,19 @@ function MainApp() {
       const agent = rlAgent.current;
       agent.setDimension(0, messages.length);
       agent.setDimension(1, memories.length);
-      
+
       const depthVal = depth === 'Fast' ? 0 : depth === 'Balanced' ? 1 : 2;
       agent.setDimension(2, depthVal);
-      
+
       const idleMap: Record<ModelState, number> = {
-        Idle: 0, Listening: 1, Reasoning: 2, Learning: 3, Nudging: 4, Consolidating: 5, Inspired: 6, Syncing: 7
+        Idle: 0,
+        Listening: 1,
+        Reasoning: 2,
+        Learning: 3,
+        Nudging: 4,
+        Consolidating: 5,
+        Inspired: 6,
+        Syncing: 7,
       };
       agent.setDimension(3, idleMap[modelState] ?? 0);
     }
@@ -1492,41 +1792,55 @@ function MainApp() {
         const agent = rlAgent.current;
         const state = agent.getState();
         const decision = await agent.selectActionHRL(state);
-        
+
         // Trigger neuro-caching predictive prefetch asynchronously
         runPredictivePrefetch(user.uid, agent).catch(console.error);
-        
+
         if (decision.type === 'option') {
-          const opt = agent.options.find(o => o.id === decision.optionId);
+          const opt = agent.options.find((o) => o.id === decision.optionId);
           if (opt) {
             agent.activeOption = opt;
             agent.optionInitState = state;
             addLog(`RL Agent activated cognitive mode: ${opt.name}`, 'NEURAL', 'RL_ENGINE');
-            setCognitiveDecisions(prev => [{
-              timestamp: Date.now(),
-              actionId: -2,
-              actionName: `Activate Mode: ${opt.name}`,
-              reward: 0.5,
-              details: `Dynamic option selection initiated for high reward pathways.`
-            }, ...prev].slice(0, 15));
+            setCognitiveDecisions((prev) =>
+              [
+                {
+                  timestamp: Date.now(),
+                  actionId: -2,
+                  actionName: `Activate Mode: ${opt.name}`,
+                  reward: 0.5,
+                  details: `Dynamic option selection initiated for high reward pathways.`,
+                },
+                ...prev,
+              ].slice(0, 15),
+            );
           }
         } else if (decision.type === 'terminate') {
-          addLog(`RL Agent terminated cognitive mode: ${agent.activeOption?.name}`, 'NEURAL', 'RL_ENGINE');
+          addLog(
+            `RL Agent terminated cognitive mode: ${agent.activeOption?.name}`,
+            'NEURAL',
+            'RL_ENGINE',
+          );
           const prevName = agent.activeOption?.name;
           agent.activeOption = null;
-          setCognitiveDecisions(prev => [{
-            timestamp: Date.now(),
-            actionId: -3,
-            actionName: 'Terminate Mode',
-            reward: 0.0,
-            details: `Completed option execution block for: ${prevName}`
-          }, ...prev].slice(0, 15));
+          setCognitiveDecisions((prev) =>
+            [
+              {
+                timestamp: Date.now(),
+                actionId: -3,
+                actionName: 'Terminate Mode',
+                reward: 0.0,
+                details: `Completed option execution block for: ${prevName}`,
+              },
+              ...prev,
+            ].slice(0, 15),
+          );
         } else {
           const action = decision.index!;
           let actionName = 'Idle';
           let reward = 0.0;
           let details = '';
-          
+
           if ((decision as any).prunedAction !== undefined) {
             const prunedIndex = (decision as any).prunedAction;
             const efe = (decision as any).efeBeforePruning;
@@ -1535,53 +1849,63 @@ function MainApp() {
               3: 'Memory Nudge',
               4: 'Chat Consolidation',
               5: 'Creative Insight',
-              6: 'Hybrid Sync RAG'
+              6: 'Hybrid Sync RAG',
             };
             const namePruned = actionNames[prunedIndex] || `Action ${prunedIndex}`;
-            addLog(`[Active Inference Action Pruning] Pruned proactive ${namePruned} due to high Expected Free Energy (EFE: ${efe?.toFixed(4)} exceeded threshold). Safe fallback applied: IDLE.`, 'NEURAL', 'RL_ENGINE');
-            
+            addLog(
+              `[Active Inference Action Pruning] Pruned proactive ${namePruned} due to high Expected Free Energy (EFE: ${efe?.toFixed(4)} exceeded threshold). Safe fallback applied: IDLE.`,
+              'NEURAL',
+              'RL_ENGINE',
+            );
+
             actionName = 'Pruned IDLE';
             reward = -0.1;
             details = `Pruned proactive ${namePruned} (EFE: ${efe?.toFixed(2)} exceeds threshold). Safe fallback.`;
           }
-          
+
           if (action === 1) {
             const depths: CognitionDepth[] = ['Fast', 'Balanced', 'Deep Reasoning'];
             const nextDepth = depths[Math.floor(Math.random() * depths.length)];
             setDepth(nextDepth);
             addLog(`RL Agent optimized cognition depth to ${nextDepth}.`, 'NEURAL', 'RL_ENGINE');
-            
+
             const nextDepthVal = nextDepth === 'Fast' ? 0 : nextDepth === 'Balanced' ? 1 : 2;
             agent.setDimension(2, nextDepthVal);
             agent.remember(state, action, 1.0, agent.getState());
             agent.train();
-            
+
             actionName = 'Shift Depth';
             reward = 1.0;
             details = `Shifted depth to ${nextDepth} in response to contextual complexity.`;
-          } 
-          else if (action === 2) {
+          } else if (action === 2) {
             if (memories.length > 5 && !isConsolidating) {
-              addLog('RL Agent recommends memory consolidation. Initiating...', 'NEURAL', 'RL_ENGINE');
+              addLog(
+                'RL Agent recommends memory consolidation. Initiating...',
+                'NEURAL',
+                'RL_ENGINE',
+              );
               handleManualConsolidateRef.current?.();
               agent.remember(state, action, 1.5, state);
               agent.train();
-              
+
               actionName = 'Consolidate Memories';
               reward = 1.5;
               details = 'Triggered semantic clustering & topological graph consolidation.';
             } else {
               agent.remember(state, action, -1.0, state);
               agent.train();
-              
+
               actionName = 'Consolidate Memories (Pruned)';
               reward = -1.0;
               details = 'Skipped consolidation due to low memory count or lock condition.';
             }
-          }
-          else if (action === 3) {
+          } else if (action === 3) {
             if (sentimentTrend < -0.3) {
-              addLog('Sentiment drift detected! RL Agent triggering proactive mood stabilization nudge.', 'CRITICAL', 'RL_ENGINE');
+              addLog(
+                'Sentiment drift detected! RL Agent triggering proactive mood stabilization nudge.',
+                'CRITICAL',
+                'RL_ENGINE',
+              );
               details = 'Detected critical sentiment drift. Triggered mood stabilization.';
             } else {
               details = 'Proactive mental health and balance nudge executed.';
@@ -1589,51 +1913,61 @@ function MainApp() {
             agent.nudgeCallback?.();
             agent.remember(state, action, 0.2, state);
             agent.train();
-            
+
             actionName = 'Memory Nudge';
             reward = 0.2;
-          }
-          else if (action === 4) {
+          } else if (action === 4) {
             addLog('RL Agent recommends chat consolidation. Initiating...', 'NEURAL', 'RL_ENGINE');
             agent.consolidateCallback?.();
             agent.remember(state, action, 0.2, state);
             agent.train();
-            
+
             actionName = 'Chat Consolidation';
             reward = 0.2;
             details = 'Initiated dialog compression to preserve token context windows.';
-          }
-          else if (action === 5) {
+          } else if (action === 5) {
             agent.insightCallback?.();
             agent.remember(state, action, 0.2, state);
             agent.train();
-            
+
             actionName = 'Creative Insight';
             reward = 0.2;
             details = 'Synthesized ambient connections to trigger speculative concepts.';
-          }
-          else if (action === 6) {
-            addLog('RL Agent recommends Hybrid Sync & Topological RAG. Initiating...', 'NEURAL', 'RL_ENGINE');
+          } else if (action === 6) {
+            addLog(
+              'RL Agent recommends Hybrid Sync & Topological RAG. Initiating...',
+              'NEURAL',
+              'RL_ENGINE',
+            );
             agent.hybridSyncRAGCallback?.();
             agent.remember(state, action, 0.5, state);
             agent.train();
-            
+
             actionName = 'Topological RAG Sync';
             reward = 0.5;
             details = 'Synchronized vector embeddings and topological knowledge graphs.';
           }
-          
+
           if (actionName !== 'Idle' || (decision as any).prunedAction !== undefined) {
-            setCognitiveDecisions(prev => [{
-              timestamp: Date.now(),
-              actionId: action,
-              actionName,
-              reward,
-              details
-            }, ...prev].slice(0, 15));
+            setCognitiveDecisions((prev) =>
+              [
+                {
+                  timestamp: Date.now(),
+                  actionId: action,
+                  actionName,
+                  reward,
+                  details,
+                },
+                ...prev,
+              ].slice(0, 15),
+            );
           }
-          
-          setAgentStats(prev => ({ epsilon: agent.epsilon, episodes: prev.episodes + 1, lastAction: action }));
+
+          setAgentStats((prev) => ({
+            epsilon: agent.epsilon,
+            episodes: prev.episodes + 1,
+            lastAction: action,
+          }));
         }
       }
     } catch (e) {
@@ -1655,25 +1989,31 @@ function MainApp() {
           const response = await fetch('/api/consolidate-memories', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ memories })
+            body: JSON.stringify({ memories }),
           });
           if (response.ok) {
             const data = await response.json();
             if (data.consolidated && data.consolidated.length > 0) {
-              addLog(`Memory consolidation complete. Synthesized into ${data.consolidated.length} clusters.`, 'NEURAL', 'MEMORY');
-              
+              addLog(
+                `Memory consolidation complete. Synthesized into ${data.consolidated.length} clusters.`,
+                'NEURAL',
+                'MEMORY',
+              );
+
               if (user) {
-                const memoriesRef = collection(db, "users", user.uid, "memories");
+                const memoriesRef = collection(db, 'users', user.uid, 'memories');
                 const snapshot = await getDocs(memoriesRef);
                 const deletePromises = snapshot.docs.map((doc: any) => deleteDoc(doc.ref));
                 await Promise.all(deletePromises);
-                
-                const addPromises = data.consolidated.map((m: any) => addDoc(memoriesRef, {
-                  text: m.text,
-                  timestamp: m.timestamp || Date.now(),
-                  strength: m.strength || 100,
-                  tags: m.tags || []
-                }));
+
+                const addPromises = data.consolidated.map((m: any) =>
+                  addDoc(memoriesRef, {
+                    text: m.text,
+                    timestamp: m.timestamp || Date.now(),
+                    strength: m.strength || 100,
+                    tags: m.tags || [],
+                  }),
+                );
                 await Promise.all(addPromises);
               } else {
                 setMemories(data.consolidated);
@@ -1681,7 +2021,7 @@ function MainApp() {
             }
           }
         } catch (error) {
-          console.error("Failed to consolidate memories:", error);
+          console.error('Failed to consolidate memories:', error);
         } finally {
           setIsConsolidating(false);
         }
@@ -1697,48 +2037,52 @@ function MainApp() {
     { id: 's3', name: 'Creative Ideation', active: false, proficiency: 72 },
     { id: 's4', name: 'Temporal Analysis', active: true, proficiency: 84 },
   ]);
-  
+
   const [newMemory, setNewMemory] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const triggerSwayRNG = () => {
     if (isSpinning) return;
     setIsSpinning(true);
     addLog('Initiating Neural Sway RNG sequence...', 'NEURAL', 'ENGINE');
-    
+
     let ticks = 0;
     const maxTicks = 20;
-    
+
     const interval = setInterval(() => {
-      setNeuralSway(prev => ({
+      setNeuralSway((prev) => ({
         ...prev,
         spins: [
           Math.floor(Math.random() * 5) + 1,
           Math.floor(Math.random() * 5) + 1,
-          Math.floor(Math.random() * 5) + 1
-        ]
+          Math.floor(Math.random() * 5) + 1,
+        ],
       }));
       ticks++;
-      
+
       if (ticks >= maxTicks) {
         clearInterval(interval);
         const s1 = Math.floor(Math.random() * 5) + 1;
         const s2 = Math.floor(Math.random() * 5) + 1;
         const s3 = Math.floor(Math.random() * 5) + 1;
         const total = s1 + s2 + s3;
-        
+
         let multiplier = 1;
         if (total >= 13) multiplier = 3;
         else if (total >= 9) multiplier = 2;
 
         setNeuralSway({ spins: [s1, s2, s3], total, multiplier });
         setIsSpinning(false);
-        
-        addLog(`Sway sequence complete. Total: ${total}. Power Multiplier: ${multiplier}x`, 'NEURAL', 'ENGINE');
+
+        addLog(
+          `Sway sequence complete. Total: ${total}. Power Multiplier: ${multiplier}x`,
+          'NEURAL',
+          'ENGINE',
+        );
         if (multiplier > 1) {
           addLog(`Cognitive bias amplified. Persona influence surged.`, 'CRITICAL', 'ENGINE');
         }
@@ -1746,18 +2090,18 @@ function MainApp() {
     }, 75);
   };
 
-  
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      
+
       recognitionRef.current.onresult = (event: any) => {
         let interimTranscript = '';
         let finalTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
@@ -1765,17 +2109,17 @@ function MainApp() {
             interimTranscript += event.results[i][0].transcript;
           }
         }
-        
+
         if (finalTranscript) {
           handleSpeechFinal(finalTranscript);
         }
       };
-      
+
       recognitionRef.current.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
+        console.error('Speech recognition error', event.error);
         setIsRecording(false);
       };
-      
+
       recognitionRef.current.onend = () => {
         setIsRecording(false);
       };
@@ -1789,22 +2133,22 @@ function MainApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text }),
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         const newSpark: Spark = {
           id: Date.now().toString() + Math.random().toString(),
           text,
-          embedding: data.embedding
+          embedding: data.embedding,
         };
-        setSparks(prev => [...prev, newSpark]);
+        setSparks((prev) => [...prev, newSpark]);
       }
     } catch (err) {
-      console.error("Failed to embed spark", err);
+      console.error('Failed to embed spark', err);
     }
   };
 
@@ -1817,7 +2161,7 @@ function MainApp() {
         recognitionRef.current.start();
         setIsRecording(true);
       } else {
-        alert("Speech recognition is not supported in your browser.");
+        alert('Speech recognition is not supported in your browser.');
       }
     }
   };
@@ -1830,22 +2174,20 @@ function MainApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           text: spark.text,
           source: 'voice_spark',
-          metadata: { timestamp: Date.now() }
-        })
+          metadata: { timestamp: Date.now() },
+        }),
       });
-      
-      setSparks(prev => prev.filter(s => s.id !== spark.id));
-      
+
+      setSparks((prev) => prev.filter((s) => s.id !== spark.id));
     } catch (err) {
-      console.error("Failed to bind spark to memory", err);
+      console.error('Failed to bind spark to memory', err);
     }
   };
-
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1860,26 +2202,38 @@ function MainApp() {
         action: 'generate_thought',
         text: userText,
         id: `intrusive_${traceId}`,
-        context: activeMessages.slice(-3).map(m => m.content || m.selfAnalysis).join(' ')
+        context: activeMessages
+          .slice(-3)
+          .map((m) => m.content || m.selfAnalysis)
+          .join(' '),
       });
     }
     logInteraction('initiate_chat', { textLength: userText.length, traceId });
-    
+
     setModelState('Listening');
     addLog(`Message received: "${userText.substring(0, 30)}..."`, 'INFO', 'CORE', traceId);
-    
+
     // Dynamically rename the session title if it is the default placeholder name
-    const activeSess = sessions.find(s => s.id === activeSessionId);
-    if (activeSess && (activeSess.title === "New Synaptic Thread" || activeSess.title === "Default Synapse Session" || activeSess.title === "New Synaptic Session" || activeSess.title === "Default Session")) {
-      const cleanTitle = userText.substring(0, 30) + (userText.length > 30 ? "..." : "");
+    const activeSess = sessions.find((s) => s.id === activeSessionId);
+    if (
+      activeSess &&
+      (activeSess.title === 'New Synaptic Thread' ||
+        activeSess.title === 'Default Synapse Session' ||
+        activeSess.title === 'New Synaptic Session' ||
+        activeSess.title === 'Default Session')
+    ) {
+      const cleanTitle = userText.substring(0, 30) + (userText.length > 30 ? '...' : '');
       if (user) {
-        const sessRef = doc(db, "users", user.uid, "sessions", activeSessionId);
-        setDoc(sessRef, { title: cleanTitle, updatedAt: Date.now() }, { merge: true })
-          .catch(err => console.error("Failed to dynamically rename session in Firestore:", err));
+        const sessRef = doc(db, 'users', user.uid, 'sessions', activeSessionId);
+        setDoc(sessRef, { title: cleanTitle, updatedAt: Date.now() }, { merge: true }).catch(
+          (err) => console.error('Failed to dynamically rename session in Firestore:', err),
+        );
       } else {
-        const updated = sessions.map(s => s.id === activeSessionId ? { ...s, title: cleanTitle, updatedAt: Date.now() } : s);
+        const updated = sessions.map((s) =>
+          s.id === activeSessionId ? { ...s, title: cleanTitle, updatedAt: Date.now() } : s,
+        );
         setSessions(updated);
-        localStorage.setItem("aqb_sessions", JSON.stringify(updated));
+        localStorage.setItem('aqb_sessions', JSON.stringify(updated));
       }
     }
 
@@ -1889,28 +2243,28 @@ function MainApp() {
       content: userText,
       timestamp: Date.now(),
       traceId,
-      sessionId: activeSessionId
+      sessionId: activeSessionId,
     };
-    
+
     // Optimistic UI update: instantly render user message to avoid lag or blockages
     const userMsgId = `usr_${Math.random().toString(36).substring(2, 11)}`;
-    setMessages(prev => {
-      if (prev.some(m => m.traceId === traceId)) return prev;
+    setMessages((prev) => {
+      if (prev.some((m) => m.traceId === traceId)) return prev;
       return [...prev, { id: userMsgId, ...userMessageData }];
     });
 
     if (user) {
       try {
-        const chatsRef = collection(db, "users", user.uid, "chats");
+        const chatsRef = collection(db, 'users', user.uid, 'chats');
         await addDoc(chatsRef, userMessageData);
       } catch (e) {
-        console.error("Failed to save user chat to Firestore:", e);
+        console.error('Failed to save user chat to Firestore:', e);
       }
     }
 
     if (userText.startsWith('/')) {
       const commandContext: CommandContext = {
-        uid: user?.uid || "anonymous",
+        uid: user?.uid || 'anonymous',
         db,
         auth,
         vitals,
@@ -1919,12 +2273,20 @@ function MainApp() {
         setDepth,
         setActivePersona: (personaIdOrObject: any) => {
           if (typeof personaIdOrObject === 'string') {
-            const found = PERSONAS.find(p => p.id === personaIdOrObject || p.name.toUpperCase().includes(personaIdOrObject.toUpperCase()));
+            const found = PERSONAS.find(
+              (p) =>
+                p.id === personaIdOrObject ||
+                p.name.toUpperCase().includes(personaIdOrObject.toUpperCase()),
+            );
             if (found) {
               setActivePersona(found);
               addLog(`Persona state aligned to: ${found.name}`, 'INFO', 'SYSTEM');
             } else {
-              addLog(`Persona alignment failed: target ID ${personaIdOrObject} not registered`, 'WARN', 'SYSTEM');
+              addLog(
+                `Persona alignment failed: target ID ${personaIdOrObject} not registered`,
+                'WARN',
+                'SYSTEM',
+              );
             }
           } else {
             setActivePersona(personaIdOrObject);
@@ -1935,21 +2297,27 @@ function MainApp() {
         },
         clearChat: async () => {
           await clearChat();
-          setModelState("Idle");
+          setModelState('Idle');
         },
         triggerNudge: () => {
-          fetchNudgeMemory().then((m) => {
-            if (m) {
-              setNudgeMemory(m as any);
-              setModelState('Nudging');
-            } else {
-              addLog("Nudge trigger completed: no immediate memories require stabilization.", "INFO", "RL_ENGINE");
-            }
-          }).catch(err => {
-            addLog(`Nudge failed: ${err.message}`, "ERROR", "RL_ENGINE");
-          });
+          fetchNudgeMemory()
+            .then((m) => {
+              if (m) {
+                setNudgeMemory(m as any);
+                setModelState('Nudging');
+              } else {
+                addLog(
+                  'Nudge trigger completed: no immediate memories require stabilization.',
+                  'INFO',
+                  'RL_ENGINE',
+                );
+              }
+            })
+            .catch((err) => {
+              addLog(`Nudge failed: ${err.message}`, 'ERROR', 'RL_ENGINE');
+            });
         },
-        addLog: (msg, lvl, src) => addLog(msg, lvl || 'INFO', src || 'SYSTEM')
+        addLog: (msg, lvl, src) => addLog(msg, lvl || 'INFO', src || 'SYSTEM'),
       };
 
       try {
@@ -1962,36 +2330,42 @@ function MainApp() {
 
           const commandMessageData = {
             role: 'ai' as const,
-            content: cmdRes.content || "",
+            content: cmdRes.content || '',
             timestamp: Date.now(),
             traceId,
             systemUI: cmdRes.systemUI,
             systemUIData: cmdRes.systemUIData,
-            sessionId: activeSessionId
+            sessionId: activeSessionId,
           };
 
           if (user) {
             try {
-              const chatsRef = collection(db, "users", user.uid, "chats");
+              const chatsRef = collection(db, 'users', user.uid, 'chats');
               await addDoc(chatsRef, commandMessageData);
             } catch (e) {
-              console.error("Failed to save command response to Firestore:", e);
+              console.error('Failed to save command response to Firestore:', e);
             }
           } else {
-            setMessages(prev => [...prev, { id: Date.now().toString(), ...commandMessageData }]);
+            setMessages((prev) => [...prev, { id: Date.now().toString(), ...commandMessageData }]);
           }
 
           if (cmdRes.systemUI === 'persona' && cmdRes.systemUIData?.requestedPersona) {
             const reqP = cmdRes.systemUIData.requestedPersona;
-            const found = PERSONAS.find(p => p.id === reqP || p.name.toUpperCase().includes(reqP));
+            const found = PERSONAS.find(
+              (p) => p.id === reqP || p.name.toUpperCase().includes(reqP),
+            );
             if (found) {
               setActivePersona(found);
               addLog(`Persona state aligned to: ${found.name}`, 'INFO', 'SYSTEM');
             } else {
-              addLog(`Persona alignment failed: target ID ${reqP} not registered`, 'WARN', 'SYSTEM');
+              addLog(
+                `Persona alignment failed: target ID ${reqP} not registered`,
+                'WARN',
+                'SYSTEM',
+              );
             }
           }
-          
+
           if (cmdRes.systemUIData?.intent === 'NAVIGATE_DEBUG') {
             setActiveTab('Neural Debugger');
           }
@@ -2008,26 +2382,29 @@ function MainApp() {
     }
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 600)); // Brief simulated listening state
-      
-      const contextData = `Active Memories:\n${memories.map(m => '- ' + m.text).join('\n')}\n\nActive Talents/Skills:\n${skills.filter(s => s.active).map(s => '- ' + s.name).join('\n')}\n\nCognition Depth: ${depth}`;
+      await new Promise((resolve) => setTimeout(resolve, 600)); // Brief simulated listening state
+
+      const contextData = `Active Memories:\n${memories.map((m) => '- ' + m.text).join('\n')}\n\nActive Talents/Skills:\n${skills
+        .filter((s) => s.active)
+        .map((s) => '- ' + s.name)
+        .join('\n')}\n\nCognition Depth: ${depth}`;
 
       if (isDebateMode) {
         addLog(`Initiating multi-agent debate FSM on: "${userText}"`, 'NEURAL', 'DEBATE', traceId);
         sendDebate({
           type: 'START_DEBATE',
           topic: userText,
-          contextData
+          contextData,
         });
         return;
       }
 
       setModelState('Reasoning');
       addLog(`Switching to ${depth} cognition mode...`, 'NEURAL', 'ENGINE', traceId);
-      
-      const historyForApi = activeMessages.map(m => ({
+
+      const historyForApi = activeMessages.map((m) => ({
         role: m.role === 'user' ? 'user' : 'model',
-        content: m.content
+        content: m.content,
       }));
 
       const apiEndpoint = isDebateMode ? '/api/debate' : '/api/chat';
@@ -2038,48 +2415,52 @@ function MainApp() {
           history: historyForApi,
           message: userText,
           contextData,
-          persona: activePersona.id === 'CUSTOM_DEFAULT'
-            ? `CUSTOM::${JSON.stringify({ name: activePersona.name, description: activePersona.description, signature: activePersona.signature })}`
-            : activePersona.id,
+          persona:
+            activePersona.id === 'CUSTOM_DEFAULT'
+              ? `CUSTOM::${JSON.stringify({ name: activePersona.name, description: activePersona.description, signature: activePersona.signature })}`
+              : activePersona.id,
           sway: neuralSway.multiplier,
           depth,
           sessionTraceId: traceId,
-          model: activeModel
-        })
+          model: activeModel,
+        }),
       });
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        const errMsg = typeof errData.error === 'object' && errData.error ? errData.error.message : (errData.error || errData.message || 'API error');
+        const errMsg =
+          typeof errData.error === 'object' && errData.error
+            ? errData.error.message
+            : errData.error || errData.message || 'API error';
         addLog(`API error: ${errMsg}`, 'ERROR', 'API', traceId);
         throw new Error(errMsg);
       }
       const data = await response.json();
       addLog(`Response generated via ${apiEndpoint}`, 'INFO', 'API', traceId);
       if (data.debateLog) addLog(`Multi-agent consensus reached.`, 'NEURAL', 'DEBATE', traceId);
-      
+
       if (data.needsReset) {
-          addLog("Triggering reset: AI greeting/repetition detected.", "WARN", "SYSTEM");
-          await clearChat();
-          setModelState("Idle");
-          return;
+        addLog('Triggering reset: AI greeting/repetition detected.', 'WARN', 'SYSTEM');
+        await clearChat();
+        setModelState('Idle');
+        return;
       }
-      
+
       if (data.codeExecution && data.codeExecution.code) {
-          addLog(`Executing AI-generated code...`, 'INFO', 'SANDBOX', traceId);
-          try {
-              const execRes = await fetch('/api/execute-code', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ code: data.codeExecution.code }),
-              });
-              const execData = await execRes.json();
-              addLog(`Code execution result: ${JSON.stringify(execData)}`, 'INFO', 'SANDBOX', traceId);
-          } catch (e) {
-              addLog(`Code execution failed: ${e}`, 'ERROR', 'SANDBOX', traceId);
-          }
+        addLog(`Executing AI-generated code...`, 'INFO', 'SANDBOX', traceId);
+        try {
+          const execRes = await fetch('/api/execute-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: data.codeExecution.code }),
+          });
+          const execData = await execRes.json();
+          addLog(`Code execution result: ${JSON.stringify(execData)}`, 'INFO', 'SANDBOX', traceId);
+        } catch (e) {
+          addLog(`Code execution failed: ${e}`, 'ERROR', 'SANDBOX', traceId);
+        }
       }
-      
+
       if (isTtsEnabled && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(data.text);
@@ -2088,11 +2469,11 @@ function MainApp() {
         utterance.onerror = () => setIsSpeaking(false);
         window.speechSynthesis.speak(utterance);
       }
-      
+
       const aiMessageData = {
         role: 'ai' as const,
         content: data.text,
-        selfAnalysis: data.selfAnalysis || "",
+        selfAnalysis: data.selfAnalysis || '',
         cognitiveLog: data.cognitiveLog || null,
         debateLog: data.debateLog || null,
         suggestedShortcuts: data.suggestedShortcuts || [],
@@ -2101,75 +2482,85 @@ function MainApp() {
         timestamp: Date.now(),
         traceId,
         isTyping: true,
-        sessionId: activeSessionId
+        sessionId: activeSessionId,
       };
 
       if (user) {
         try {
-          const chatsRef = collection(db, "users", user.uid, "chats");
+          const chatsRef = collection(db, 'users', user.uid, 'chats');
           const aiDocRef = doc(chatsRef); // Generate ID locally
           const { isTyping, ...saveData } = aiMessageData;
-          
+
           // Local update to trigger typewriter immediately for logged-in users too
-          setMessages(prev => {
-            if (prev.some(m => m.id === aiDocRef.id)) return prev;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === aiDocRef.id)) return prev;
             return [...prev, { id: aiDocRef.id, ...aiMessageData }];
           });
-          
+
           await setDoc(aiDocRef, saveData); // Don't save isTyping to firestore
         } catch (e) {
-          console.error("Failed to save AI chat to Firestore:", e);
+          console.error('Failed to save AI chat to Firestore:', e);
           // Fallback if firestore fails
-          setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
+          setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), ...aiMessageData }]);
         }
       } else {
-        setMessages(prev => [...prev, { 
-          id: (Date.now() + 1).toString(), 
-          ...aiMessageData
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            ...aiMessageData,
+          },
+        ]);
       }
 
       if (data.extractedMemory) {
         addLog(`Extracting new memory: ${data.extractedMemory}`, 'NEURAL', 'MEMORY', traceId);
-        
-        let embedding: number[] | undefined ;
+
+        let embedding: number[] | undefined;
         try {
-          const embedRes = await fetch('/api/embed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: data.extractedMemory }) });
+          const embedRes = await fetch('/api/embed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: data.extractedMemory }),
+          });
           const embedData = await embedRes.json();
           if (embedData.embedding) embedding = embedData.embedding;
         } catch (e) {
-          console.warn("Failed to generate embedding for extracted memory", e);
+          console.warn('Failed to generate embedding for extracted memory', e);
         }
 
         if (user) {
           try {
-            const memoriesRef = collection(db, "users", user.uid, "memories");
+            const memoriesRef = collection(db, 'users', user.uid, 'memories');
             await addDoc(memoriesRef, {
               text: data.extractedMemory,
               timestamp: Date.now(),
               strength: 100,
               tags: data.extractedTags || [],
-              ...(embedding ? { embedding } : {})
+              ...(embedding ? { embedding } : {}),
             });
           } catch (e) {
-            console.error("Failed to save extracted memory to Firestore:", e);
+            console.error('Failed to save extracted memory to Firestore:', e);
           }
         } else {
-          setMemories(prev => [...prev, {
-            id: `ext-${Date.now()}`,
-            text: data.extractedMemory,
-            timestamp: Date.now(),
-            strength: 100,
-            tags: data.extractedTags || [],
-            embedding
-          }]);
+          setMemories((prev) => [
+            ...prev,
+            {
+              id: `ext-${Date.now()}`,
+              text: data.extractedMemory,
+              timestamp: Date.now(),
+              strength: 100,
+              tags: data.extractedTags || [],
+              embedding,
+            },
+          ]);
         }
         // Also add to vector RAG knowledge base
         fetch('/api/knowledge/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: data.extractedMemory })
-        }).catch(e => console.error("Failed to add to RAG KB", e));
+          body: JSON.stringify({ text: data.extractedMemory }),
+        }).catch((e) => console.error('Failed to add to RAG KB', e));
 
         setModelState('Learning');
         setTimeout(() => setModelState('Idle'), 2500);
@@ -2178,29 +2569,29 @@ function MainApp() {
       }
 
       // Yield to the event loop to allow React to paint the message and the 'Idle' state
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // -- RL Agent Interaction --
       if (rlAgent.current) {
         const agent = rlAgent.current;
         agent.useActiveInference = cognitiveMode === 'ActiveInference';
-        
+
         const state = agent.getState();
         const decision = await agent.act(state);
         if (decision.efe !== undefined) setEfeScore(decision.efe);
         if (decision.confidence !== undefined) setPolicyConfidence(decision.confidence);
         const action = typeof decision === 'number' ? decision : (decision.index ?? 0);
         addLog(`RL Agent selected action: ${action} [Mode: ${cognitiveMode}]`, 'INFO', 'RL_ENGINE');
-        
+
         // If Active Inference, we can get the EFE from the planner (if we exposed it)
         // For now, let's just use the action
-        
+
         let reward = 0;
-        if (action === 1) { 
+        if (action === 1) {
           const depths: CognitionDepth[] = ['Fast', 'Balanced', 'Deep Reasoning'];
           const nextDepth = depths[Math.floor(Math.random() * depths.length)];
           setDepth(nextDepth);
-          reward = 1.0; 
+          reward = 1.0;
         } else if (action === 2) {
           if (memories.length > 5 && !isConsolidating) {
             handleManualConsolidateRef.current?.();
@@ -2221,9 +2612,9 @@ function MainApp() {
           // Hybrid Sync RAG action is triggered via callback
           reward = 0.3;
         } else {
-          reward = 0.1; 
+          reward = 0.1;
         }
-        
+
         if (data.extractedMemory) reward += 2.0;
 
         // Update the dimensions internally to sync the post-action state
@@ -2235,36 +2626,46 @@ function MainApp() {
 
         agent.remember(state, decision, reward, nextState);
         agent.train();
-        
-        setAgentStats(prev => ({ epsilon: agent.epsilon, episodes: prev.episodes + 1, lastAction: action }));
+
+        setAgentStats((prev) => ({
+          epsilon: agent.epsilon,
+          episodes: prev.episodes + 1,
+          lastAction: action,
+        }));
       }
       // -- End RL Agent Interaction --
     } catch (error) {
       console.error('Chat error:', error);
       const errMessageData = {
         role: 'ai' as const,
-        content: error instanceof Error ? error.message : "Communication anomaly detected. My neural pathways experienced a disruption. (Ensure the Gemini API key is configured).",
+        content:
+          error instanceof Error
+            ? error.message
+            : 'Communication anomaly detected. My neural pathways experienced a disruption. (Ensure the Gemini API key is configured).',
         timestamp: Date.now(),
         systemUI: 'error-card' as const,
         systemUIData: {
           errorMessage: error instanceof Error ? error.message : String(error),
-          traceId
+          traceId,
         },
-        sessionId: activeSessionId
+        sessionId: activeSessionId,
       };
       if (user) {
         try {
-          const chatsRef = collection(db, "users", user.uid, "chats");
+          const chatsRef = collection(db, 'users', user.uid, 'chats');
           await addDoc(chatsRef, errMessageData);
         } catch (e) {
-          console.error("Failed to save error chat to Firestore:", e);
+          console.error('Failed to save error chat to Firestore:', e);
         }
       } else {
-        setMessages(prev => [...prev, { 
-          id: (Date.now() + 1).toString(), 
-          ...errMessageData,
-          isTyping: false 
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            ...errMessageData,
+            isTyping: false,
+          },
+        ]);
       }
       setModelState('Idle');
     }
@@ -2275,48 +2676,58 @@ function MainApp() {
   const addMemoryDirectly = async (text: string, tags: string[] = []) => {
     addLog(`Direct neural link: injecting custom concept node`, 'INFO', 'CORE');
     const strength = 100;
-    
-    let embedding: number[] | undefined ;
+
+    let embedding: number[] | undefined;
     try {
-      const res = await fetch('/api/embed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+      const res = await fetch('/api/embed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
       const data = await res.json();
       if (data.embedding) embedding = data.embedding;
     } catch (e) {
-      console.warn("Failed to generate embedding for manual memory", e);
+      console.warn('Failed to generate embedding for manual memory', e);
     }
 
     if (user) {
       try {
-        const memoriesRef = collection(db, "users", user.uid, "memories");
+        const memoriesRef = collection(db, 'users', user.uid, 'memories');
         await addDoc(memoriesRef, {
           text,
           timestamp: Date.now(),
           strength,
           tags,
-          ...(embedding ? { embedding } : {})
+          ...(embedding ? { embedding } : {}),
         });
         addLog(`Synaptic node integrated to persistent cloud database.`, 'INFO', 'ENGINE');
       } catch (e) {
-        console.error("Failed to save memory to Firestore:", e);
+        console.error('Failed to save memory to Firestore:', e);
         addLog(`Cloud integration failed: offline backup initiated.`, 'ERROR', 'ENGINE');
-        setMemories(prev => [...prev, { 
-          id: Date.now().toString(), 
+        setMemories((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            text,
+            timestamp: Date.now(),
+            strength,
+            tags,
+            embedding,
+          },
+        ]);
+      }
+    } else {
+      setMemories((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
           text,
           timestamp: Date.now(),
           strength,
           tags,
-          embedding
-        }]);
-      }
-    } else {
-      setMemories(prev => [...prev, { 
-        id: Date.now().toString(), 
-        text,
-        timestamp: Date.now(),
-        strength,
-        tags,
-        embedding
-      }]);
+          embedding,
+        },
+      ]);
       addLog(`Synaptic node integrated in client transient session.`, 'INFO', 'ENGINE');
     }
   };
@@ -2324,67 +2735,73 @@ function MainApp() {
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemory.trim() || isTagging) return;
-    
+
     const text = newMemory.trim();
     setNewMemory('');
     setIsTagging(true);
     setModelState('Learning');
-    
+
     try {
       const response = await fetch('/api/tag-memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text }),
       });
       const data = await response.json();
-      
+
       const tags = data.tags || [];
       const strength = Math.floor(Math.random() * 40) + 60;
-      
+
       if (user) {
         try {
-          const memoriesRef = collection(db, "users", user.uid, "memories");
+          const memoriesRef = collection(db, 'users', user.uid, 'memories');
           await addDoc(memoriesRef, {
             text,
             timestamp: Date.now(),
             strength,
-            tags
+            tags,
           });
         } catch (e) {
-          console.error("Failed to save manual memory to Firestore:", e);
+          console.error('Failed to save manual memory to Firestore:', e);
         }
       } else {
-        setMemories(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text,
-          timestamp: Date.now(),
-          strength,
-          tags
-        }]);
+        setMemories((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            text,
+            timestamp: Date.now(),
+            strength,
+            tags,
+          },
+        ]);
       }
     } catch (err) {
       console.error(err);
       const strength = Math.floor(Math.random() * 40) + 60;
       if (user) {
         try {
-          const memoriesRef = collection(db, "users", user.uid, "memories");
+          const memoriesRef = collection(db, 'users', user.uid, 'memories');
           await addDoc(memoriesRef, {
             text,
             timestamp: Date.now(),
             strength,
-            tags: []
+            tags: [],
           });
         } catch (e) {
-          console.error("Failed to save fallback manual memory:", e);
+          console.error('Failed to save fallback manual memory:', e);
         }
       } else {
-        setMemories(prev => [...prev, { 
-          id: Date.now().toString(), 
-          text,
-          timestamp: Date.now(),
-          strength,
-          tags: []
-        }]);
+        setMemories((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            text,
+            timestamp: Date.now(),
+            strength,
+            tags: [],
+          },
+        ]);
       }
     } finally {
       setIsTagging(false);
@@ -2395,28 +2812,32 @@ function MainApp() {
   const removeMemory = async (id: string) => {
     if (user) {
       try {
-        await deleteDoc(doc(db, "users", user.uid, "memories", id));
+        await deleteDoc(doc(db, 'users', user.uid, 'memories', id));
       } catch (e) {
-        console.error("Failed to delete memory from Firestore:", e);
+        console.error('Failed to delete memory from Firestore:', e);
       }
     } else {
-      setMemories(prev => prev.filter(m => m.id !== id));
+      setMemories((prev) => prev.filter((m) => m.id !== id));
     }
   };
 
   const togglePinMemory = async (id: string) => {
-    const memory = memories.find(m => m.id === id);
+    const memory = memories.find((m) => m.id === id);
     logInteraction('pin_memory', { memoryId: id });
     if (memory && user) {
       try {
-        await setDoc(doc(db, "users", user.uid, "memories", id), {
-          pinned: !memory.pinned
-        }, { merge: true });
+        await setDoc(
+          doc(db, 'users', user.uid, 'memories', id),
+          {
+            pinned: !memory.pinned,
+          },
+          { merge: true },
+        );
       } catch (e) {
-        console.error("Failed to pin memory in Firestore:", e);
+        console.error('Failed to pin memory in Firestore:', e);
       }
     } else {
-      setMemories(prev => prev.map(m => m.id === id ? { ...m, pinned: !m.pinned } : m));
+      setMemories((prev) => prev.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m)));
     }
   };
 
@@ -2424,35 +2845,57 @@ function MainApp() {
     if (selectedMemoryIds.length === 0 || !bulkTagInput.trim()) return;
     const tagToApply = bulkTagInput.trim();
     setIsBulkTagging(true);
-    addLog(`Applying tag "${tagToApply}" to ${selectedMemoryIds.length} memories...`, 'INFO', 'MEMORY');
+    addLog(
+      `Applying tag "${tagToApply}" to ${selectedMemoryIds.length} memories...`,
+      'INFO',
+      'MEMORY',
+    );
 
     try {
       if (user) {
         const updatePromises = selectedMemoryIds.map(async (id) => {
-          const memoryRef = doc(db, "users", user.uid, "memories", id);
-          const memObj = memories.find(m => m.id === id);
+          const memoryRef = doc(db, 'users', user.uid, 'memories', id);
+          const memObj = memories.find((m) => m.id === id);
           const currentTags = memObj?.tags || [];
-          const updatedTags = currentTags.includes(tagToApply) ? currentTags : [...currentTags, tagToApply];
+          const updatedTags = currentTags.includes(tagToApply)
+            ? currentTags
+            : [...currentTags, tagToApply];
           await setDoc(memoryRef, { tags: updatedTags }, { merge: true });
         });
         await Promise.all(updatePromises);
-        addLog(`Successfully tagged ${selectedMemoryIds.length} memories in Firestore.`, 'NEURAL', 'MEMORY');
+        addLog(
+          `Successfully tagged ${selectedMemoryIds.length} memories in Firestore.`,
+          'NEURAL',
+          'MEMORY',
+        );
       } else {
-        setMemories(prev => prev.map(m => {
-          if (selectedMemoryIds.includes(m.id)) {
-            const currentTags = m.tags || [];
-            const updatedTags = currentTags.includes(tagToApply) ? currentTags : [...currentTags, tagToApply];
-            return { ...m, tags: updatedTags };
-          }
-          return m;
-        }));
-        addLog(`Successfully tagged ${selectedMemoryIds.length} memories locally.`, 'NEURAL', 'MEMORY');
+        setMemories((prev) =>
+          prev.map((m) => {
+            if (selectedMemoryIds.includes(m.id)) {
+              const currentTags = m.tags || [];
+              const updatedTags = currentTags.includes(tagToApply)
+                ? currentTags
+                : [...currentTags, tagToApply];
+              return { ...m, tags: updatedTags };
+            }
+            return m;
+          }),
+        );
+        addLog(
+          `Successfully tagged ${selectedMemoryIds.length} memories locally.`,
+          'NEURAL',
+          'MEMORY',
+        );
       }
       setSelectedMemoryIds([]);
       setBulkTagInput('');
     } catch (e) {
-      console.error("Bulk tagging failed:", e);
-      addLog(`Failed bulk tagging: ${e instanceof Error ? e.message : String(e)}`, 'ERROR', 'MEMORY');
+      console.error('Bulk tagging failed:', e);
+      addLog(
+        `Failed bulk tagging: ${e instanceof Error ? e.message : String(e)}`,
+        'ERROR',
+        'MEMORY',
+      );
     } finally {
       setIsBulkTagging(false);
     }
@@ -2465,81 +2908,102 @@ function MainApp() {
 
     try {
       if (user) {
-        const deletePromises = selectedMemoryIds.map(id => 
-          deleteDoc(doc(db, "users", user.uid, "memories", id))
+        const deletePromises = selectedMemoryIds.map((id) =>
+          deleteDoc(doc(db, 'users', user.uid, 'memories', id)),
         );
         await Promise.all(deletePromises);
-        addLog(`Successfully deleted ${selectedMemoryIds.length} memories in Firestore.`, 'NEURAL', 'MEMORY');
+        addLog(
+          `Successfully deleted ${selectedMemoryIds.length} memories in Firestore.`,
+          'NEURAL',
+          'MEMORY',
+        );
       } else {
-        setMemories(prev => prev.filter(m => !selectedMemoryIds.includes(m.id)));
-        addLog(`Successfully deleted ${selectedMemoryIds.length} memories locally.`, 'NEURAL', 'MEMORY');
+        setMemories((prev) => prev.filter((m) => !selectedMemoryIds.includes(m.id)));
+        addLog(
+          `Successfully deleted ${selectedMemoryIds.length} memories locally.`,
+          'NEURAL',
+          'MEMORY',
+        );
       }
       setSelectedMemoryIds([]);
     } catch (e) {
-      console.error("Bulk deletion failed:", e);
-      addLog(`Failed bulk deletion: ${e instanceof Error ? e.message : String(e)}`, 'ERROR', 'MEMORY');
+      console.error('Bulk deletion failed:', e);
+      addLog(
+        `Failed bulk deletion: ${e instanceof Error ? e.message : String(e)}`,
+        'ERROR',
+        'MEMORY',
+      );
     } finally {
       setIsBulkDeleting(false);
     }
   };
 
   const handleSelectAllMemories = () => {
-    const allIds = filteredMemories.map(m => m.id);
+    const allIds = filteredMemories.map((m) => m.id);
     setSelectedMemoryIds(allIds);
     addLog(`Selected all ${allIds.length} filtered memories.`, 'INFO', 'SYSTEM');
   };
 
   const handleClearMemorySelection = () => {
     setSelectedMemoryIds([]);
-    addLog("Cleared memory selection.", "INFO", "SYSTEM");
+    addLog('Cleared memory selection.', 'INFO', 'SYSTEM');
   };
 
   const clearChat = async () => {
     if (user) {
-      addLog("Initiating session chat history reset...", "WARN", "SYSTEM");
+      addLog('Initiating session chat history reset...', 'WARN', 'SYSTEM');
       try {
-        const chatsRef = collection(db, "users", user.uid, "chats");
+        const chatsRef = collection(db, 'users', user.uid, 'chats');
         const snapshot = await getDocs(chatsRef);
         const deletePromises = snapshot.docs
-          .filter(doc => {
+          .filter((doc) => {
             const data = doc.data();
-            return data.sessionId === activeSessionId || (activeSessionId === "default" && (!data.sessionId || data.sessionId === "default"));
+            return (
+              data.sessionId === activeSessionId ||
+              (activeSessionId === 'default' && (!data.sessionId || data.sessionId === 'default'))
+            );
           })
           .map((doc: any) => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
-        addLog("Session chat history successfully cleared.", "INFO", "SYSTEM");
+        addLog('Session chat history successfully cleared.', 'INFO', 'SYSTEM');
       } catch (e) {
-        console.error("Failed to clear chat history from Firestore:", e);
-        addLog("Error resetting chat history.", "ERROR", "SYSTEM");
+        console.error('Failed to clear chat history from Firestore:', e);
+        addLog('Error resetting chat history.', 'ERROR', 'SYSTEM');
       }
     } else {
-      setMessages(prev => prev.filter(m => {
-        if (activeSessionId === "default") {
-          return m.sessionId && m.sessionId !== "default";
-        }
-        return m.sessionId !== activeSessionId;
-      }));
-      addLog("Session chat history successfully cleared locally.", "INFO", "SYSTEM");
+      setMessages((prev) =>
+        prev.filter((m) => {
+          if (activeSessionId === 'default') {
+            return m.sessionId && m.sessionId !== 'default';
+          }
+          return m.sessionId !== activeSessionId;
+        }),
+      );
+      addLog('Session chat history successfully cleared locally.', 'INFO', 'SYSTEM');
     }
   };
 
   const toggleSkill = (id: string) => {
-    setSkills(prev => prev.map(s => s.id === id ? { ...s, active: !s.active } : s));
+    setSkills((prev) => prev.map((s) => (s.id === id ? { ...s, active: !s.active } : s)));
   };
 
   const handleSingleUpdateStrength = async (id: string, strength: number) => {
     try {
       if (user) {
-        const memoryRef = doc(db, "users", user.uid, "memories", id);
+        const memoryRef = doc(db, 'users', user.uid, 'memories', id);
         await setDoc(memoryRef, { strength }, { merge: true });
         addLog(`Adjusted memory strength to ${strength}%.`, 'INFO', 'MEMORY');
       } else {
-        setMemories(prev => prev.map(m => m.id === id ? { ...m, strength } : m));
+        setMemories((prev) => prev.map((m) => (m.id === id ? { ...m, strength } : m)));
         addLog(`Adjusted memory strength to ${strength}% locally.`, 'INFO', 'MEMORY');
       }
     } catch (e) {
-      console.error("Failed to update memory strength:", e);
-      addLog(`Error adjusting memory strength: ${e instanceof Error ? e.message : String(e)}`, 'ERROR', 'MEMORY');
+      console.error('Failed to update memory strength:', e);
+      addLog(
+        `Error adjusting memory strength: ${e instanceof Error ? e.message : String(e)}`,
+        'ERROR',
+        'MEMORY',
+      );
     }
   };
 
@@ -2557,24 +3021,38 @@ function MainApp() {
     try {
       if (user) {
         const updatePromises = selectedMemoryIds.map(async (id) => {
-          const memoryRef = doc(db, "users", user.uid, "memories", id);
+          const memoryRef = doc(db, 'users', user.uid, 'memories', id);
           await setDoc(memoryRef, { strength }, { merge: true });
         });
         await Promise.all(updatePromises);
-        addLog(`Successfully updated ${selectedMemoryIds.length} memories in Firestore.`, 'NEURAL', 'MEMORY');
+        addLog(
+          `Successfully updated ${selectedMemoryIds.length} memories in Firestore.`,
+          'NEURAL',
+          'MEMORY',
+        );
       } else {
-        setMemories(prev => prev.map(m => {
-          if (selectedMemoryIds.includes(m.id)) {
-            return { ...m, strength };
-          }
-          return m;
-        }));
-        addLog(`Successfully updated ${selectedMemoryIds.length} memories locally.`, 'NEURAL', 'MEMORY');
+        setMemories((prev) =>
+          prev.map((m) => {
+            if (selectedMemoryIds.includes(m.id)) {
+              return { ...m, strength };
+            }
+            return m;
+          }),
+        );
+        addLog(
+          `Successfully updated ${selectedMemoryIds.length} memories locally.`,
+          'NEURAL',
+          'MEMORY',
+        );
       }
       setSelectedMemoryIds([]);
     } catch (e) {
-      console.error("Bulk strength update failed:", e);
-      addLog(`Failed bulk strength update: ${e instanceof Error ? e.message : String(e)}`, 'ERROR', 'MEMORY');
+      console.error('Bulk strength update failed:', e);
+      addLog(
+        `Failed bulk strength update: ${e instanceof Error ? e.message : String(e)}`,
+        'ERROR',
+        'MEMORY',
+      );
     } finally {
       setIsBulkReinforcing(false);
       setIsBulkDecaying(false);
@@ -2584,48 +3062,58 @@ function MainApp() {
   const handleManualConsolidate = async () => {
     if (isConsolidating) return;
     if (memories.length === 0) {
-      addLog("Cannot consolidate an empty memory registry.", "WARN", "MEMORY");
+      addLog('Cannot consolidate an empty memory registry.', 'WARN', 'MEMORY');
       return;
     }
     setIsConsolidating(true);
-    addLog("Initiating manual memory consolidation...", "NEURAL", "MEMORY");
+    addLog('Initiating manual memory consolidation...', 'NEURAL', 'MEMORY');
     try {
       const response = await fetch('/api/consolidate-memories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memories })
+        body: JSON.stringify({ memories }),
       });
       if (response.ok) {
         const data = await response.json();
         if (data.consolidated && data.consolidated.length > 0) {
-          addLog(`Consolidation successful! Synthesized ${memories.length} nodes down to ${data.consolidated.length} clusters.`, 'NEURAL', 'MEMORY');
-          
+          addLog(
+            `Consolidation successful! Synthesized ${memories.length} nodes down to ${data.consolidated.length} clusters.`,
+            'NEURAL',
+            'MEMORY',
+          );
+
           if (user) {
-            const memoriesRef = collection(db, "users", user.uid, "memories");
+            const memoriesRef = collection(db, 'users', user.uid, 'memories');
             const snapshot = await getDocs(memoriesRef);
             const deletePromises = snapshot.docs.map((doc: any) => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
-            
-            const addPromises = data.consolidated.map((m: any) => addDoc(memoriesRef, {
-              text: m.text,
-              timestamp: m.timestamp || Date.now(),
-              strength: m.strength || 100,
-              tags: m.tags || []
-            }));
+
+            const addPromises = data.consolidated.map((m: any) =>
+              addDoc(memoriesRef, {
+                text: m.text,
+                timestamp: m.timestamp || Date.now(),
+                strength: m.strength || 100,
+                tags: m.tags || [],
+              }),
+            );
             await Promise.all(addPromises);
           } else {
             setMemories(data.consolidated);
           }
         } else {
-          addLog("Consolidation yielded no changes.", "INFO", "MEMORY");
+          addLog('Consolidation yielded no changes.', 'INFO', 'MEMORY');
         }
       } else {
         const errorText = await response.text();
-        addLog(`Consolidation service returned error: ${errorText}`, "ERROR", "MEMORY");
+        addLog(`Consolidation service returned error: ${errorText}`, 'ERROR', 'MEMORY');
       }
     } catch (error) {
-      console.error("Manual memory consolidation failed:", error);
-      addLog(`Consolidation failed: ${error instanceof Error ? error.message : String(error)}`, "ERROR", "MEMORY");
+      console.error('Manual memory consolidation failed:', error);
+      addLog(
+        `Consolidation failed: ${error instanceof Error ? error.message : String(error)}`,
+        'ERROR',
+        'MEMORY',
+      );
     } finally {
       setIsConsolidating(false);
     }
@@ -2671,14 +3159,14 @@ function MainApp() {
   }, [memories, isConsolidating]);
 
   const handleNudgeUse = (text: string) => {
-    setInput(prev => prev ? prev + ' ' + text : text);
-    
+    setInput((prev) => (prev ? prev + ' ' + text : text));
+
     if (rlAgent.current && nudgeMemory?.id) {
       rlAgent.current.applyDelayedReward(nudgeMemory.id, 'click');
     } else if (rlAgent.current) {
       rlAgent.current.applyNudgeReward('click');
     }
-    
+
     logSystemEvent({ type: 'nudge_use', memoryId: nudgeMemory?.id, engagement: 'click' });
     setModelState('Idle');
     setNudgeMemory(null);
@@ -2691,7 +3179,7 @@ function MainApp() {
     } else if (rlAgent.current) {
       rlAgent.current.applyNudgeReward('dismiss');
     }
-    
+
     logSystemEvent({ type: 'nudge_dismiss', memoryId: nudgeMemory?.id, engagement: 'dismiss' });
     setModelState('Idle');
     setNudgeMemory(null);
@@ -2704,7 +3192,7 @@ function MainApp() {
     } else if (rlAgent.current) {
       rlAgent.current.applyNudgeReward('ignore');
     }
-    
+
     logSystemEvent({ type: 'nudge_timeout', memoryId: nudgeMemory?.id, engagement: 'ignore' });
     setModelState('Idle');
     setNudgeMemory(null);
@@ -2719,13 +3207,13 @@ function MainApp() {
       timestamp: Date.now(),
       strength: proposal.confidence,
       tags: proposal.tags,
-      pinned: false
+      pinned: false,
     };
 
-    setMemories(prev => [...prev, optimisticMemory]);
+    setMemories((prev) => [...prev, optimisticMemory]);
     setModelState('Idle');
     setConsolidationProposal(null);
-    
+
     // Background Sync
     try {
       await confirmMemory(proposal);
@@ -2734,12 +3222,20 @@ function MainApp() {
       } else if (rlAgent.current) {
         rlAgent.current.applyConsolidationReward('confirm');
       }
-      logSystemEvent({ type: 'consolidate_confirm', payload: { chatId: proposal.chatId }, engagement: 'click' });
-      addLog('Memory consolidation confirmed and saved. Q-values optimized.', 'NEURAL', 'RL_ENGINE');
+      logSystemEvent({
+        type: 'consolidate_confirm',
+        payload: { chatId: proposal.chatId },
+        engagement: 'click',
+      });
+      addLog(
+        'Memory consolidation confirmed and saved. Q-values optimized.',
+        'NEURAL',
+        'RL_ENGINE',
+      );
     } catch (error) {
-      console.error("Failed to confirm consolidation memory:", error);
+      console.error('Failed to confirm consolidation memory:', error);
       // Rollback
-      setMemories(prev => prev.filter(m => m.id !== optimisticMemory.id));
+      setMemories((prev) => prev.filter((m) => m.id !== optimisticMemory.id));
       setModelState('Consolidating');
       setConsolidationProposal(proposal);
       addLog('Failed to sync consolidation. Please try again.', 'ERROR', 'SYSTEM');
@@ -2794,7 +3290,9 @@ function MainApp() {
             return b._sim - a._sim;
           });
       } else {
-        result = result.filter(m => m.pinned || m.text.toLowerCase().includes(memorySearchQuery.toLowerCase()));
+        result = result.filter(
+          (m) => m.pinned || m.text.toLowerCase().includes(memorySearchQuery.toLowerCase()),
+        );
       }
     }
 
@@ -2813,13 +3311,21 @@ function MainApp() {
         return b.timestamp - a.timestamp;
       });
     }
-    
+
     return result;
-  }, [memories, memorySearchQuery, searchQueryEmbedding, selectedTagFilter, startDateFilter, endDateFilter]);
+  }, [
+    memories,
+    memorySearchQuery,
+    searchQueryEmbedding,
+    selectedTagFilter,
+    startDateFilter,
+    endDateFilter,
+  ]);
 
   if (appView === 'landing' || !user) {
     return (
-      <LandingScreen theme={theme}
+      <LandingScreen
+        theme={theme}
         onEnter={async () => {
           if (!user) {
             setIsAuthLoading(true);
@@ -2830,21 +3336,21 @@ function MainApp() {
                 setUser(res.user);
               }
             } catch (error: any) {
-              console.error("Free entry sign in failed:", error);
+              console.error('Free entry sign in failed:', error);
               setAuthError(error?.message || String(error));
               setIsAuthLoading(false);
               return;
             }
             setIsAuthLoading(false);
           }
-          addLog("Neural connection established freely.", "NEURAL", "BRIDGE");
+          addLog('Neural connection established freely.', 'NEURAL', 'BRIDGE');
           sessionStartTime.current = Date.now();
           lastActivity.current = Date.now();
           setAppView('dashboard');
         }}
         isLoading={isAuthLoading}
         authError={authError}
-        toggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        toggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
       />
     );
   }
@@ -2854,1144 +3360,1579 @@ function MainApp() {
       {showOnboarding && <OnboardingWizard onComplete={handleOnboardingComplete} />}
       {isApiUnreachable && <LocalOnlyModeBanner />}
 
-      <div className={`flex h-screen w-full transition-colors duration-500 overflow-hidden font-sans relative selection:bg-teal-500/30 ${
-      theme === 'dark' ? 'bg-[#0a0a0f] text-slate-200' : 'bg-slate-50 text-slate-900'
-    } ${neuralSway.multiplier >= 3 ? 'hue-rotate-[10deg] saturate-[1.2]' : ''}`}
-    style={{ '--app-hue': (sentimentTrend * 100 + 220) + 'deg' } as React.CSSProperties}>
-      {/* Overclocking Overlay */}
-      {neuralSway.multiplier >= 3 && (
-        <div className="fixed inset-0 pointer-events-none z-50 bg-amber-500/5 animate-pulse mix-blend-overlay" />
-      )}
-      
-      {/* 1. Ambient Background Layer */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute inset-0 opacity-40 transition-opacity duration-1000"
-          style={{
-            background: theme === 'dark' 
-              ? 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.15) 0%, rgba(99,102,241,0.15) 30%, #0a0a0f 70%)'
-              : 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.1) 0%, rgba(99,102,241,0.1) 30%, #f8fafc 70%)',
-            animation: 'pulse 8s infinite alternate ease-in-out'
-          }} 
-        />
-      </div>
+      <div
+        className={`flex h-screen w-full transition-colors duration-500 overflow-hidden font-sans relative selection:bg-teal-500/30 ${
+          theme === 'dark' ? 'bg-[#0a0a0f] text-slate-200' : 'bg-slate-50 text-slate-900'
+        } ${neuralSway.multiplier >= 3 ? 'hue-rotate-[10deg] saturate-[1.2]' : ''}`}
+        style={{ '--app-hue': sentimentTrend * 100 + 220 + 'deg' } as React.CSSProperties}
+      >
+        {/* Overclocking Overlay */}
+        {neuralSway.multiplier >= 3 && (
+          <div className="fixed inset-0 pointer-events-none z-50 bg-amber-500/5 animate-pulse mix-blend-overlay" />
+        )}
 
-      {/* 2. Glass UI Layer */}
-      <div className="flex z-10 w-full h-full relative backdrop-blur-[2px]">
-        
-        {/* Left Rail: Memory & Skills Panel */}
-                {/* Narrow Sidebar Navigation */}
-        <nav className={`w-16 md:w-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/60'} backdrop-blur-xl overflow-hidden flex flex-col items-center py-4 z-30`}>
-           <div className="relative flex items-center justify-center w-10 h-10 mb-4 cursor-pointer" onClick={() => setSidebarOpen(!isSidebarOpen)}>
-             <svg viewBox="0 0 24 24" className={`w-full h-full stroke-amber-400 ${theme === 'dark' ? 'fill-amber-950/50' : 'fill-amber-100/50'}`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-               <line x1="12" y1="22.08" x2="12" y2="12"></line>
-             </svg>
-             <span className="absolute text-[9px] font-bold text-amber-500 translate-y-[2px]">AQB</span>
-           </div>
+        {/* 1. Ambient Background Layer */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <div
+            className="absolute inset-0 opacity-40 transition-opacity duration-1000"
+            style={{
+              background:
+                theme === 'dark'
+                  ? 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.15) 0%, rgba(99,102,241,0.15) 30%, #0a0a0f 70%)'
+                  : 'radial-gradient(circle at 50% 50%, rgba(45,212,191,0.1) 0%, rgba(99,102,241,0.1) 30%, #f8fafc 70%)',
+              animation: 'pulse 8s infinite alternate ease-in-out',
+            }}
+          />
+        </div>
 
-           <div className="flex flex-col gap-2 w-full px-2 mt-4">
-             <button onClick={() => handleTabChange('Chat')} title="Neural Interface" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Chat' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <MessageSquare className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Memory')} title="Memory" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memory' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Brain className={`w-5 h-5 ${isConsolidating ? 'animate-pulse text-teal-300' : ''}`} />
-             </button>
-             <button onClick={() => handleTabChange('Brains')} title="Brains" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brains' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Cpu className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Heartbeat')} title="Heartbeat" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Heartbeat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Activity className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Mind Map')} title="Mind Map" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Mind Map' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Network className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Brainstorm')} title="Brainstorm" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brainstorm' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Lightbulb className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Logs')} title="Logs" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Logs' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Terminal className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Telemetry')} title="Telemetry" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Telemetry' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Database className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Neural Debugger')} title="Neural Debugger" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Neural Debugger' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Bug className="w-5 h-5" />
-             </button>
-             
-             <button onClick={toggleSynth} title="Ambient Synth" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all mt-auto ${isSynthPlaying ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               {isSynthPlaying ? <Volume2 className="w-5 h-5 animate-pulse" /> : <VolumeX className="w-5 h-5" />}
-             </button>
-             <div className="h-4" />
-
-             <button onClick={() => handleTabChange('Memoria')} title="Memoria" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memoria' ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Compass className="w-5 h-5" />
-             </button>
-             <button onClick={() => handleTabChange('Workspace')} title="Workspace" className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Workspace' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Search className="w-5 h-5" />
-             </button>
-           </div>
-           
-           <div className="mt-auto flex flex-col gap-2 w-full px-2">
-             <button onClick={() => setIsSettingsOpen(true)} title="Settings" className={`p-3 w-full flex items-center justify-center rounded-xl transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}>
-               <Settings className="w-5 h-5" />
-             </button>
-           </div>
-        </nav>
-
-        {/* Main Content Area */}
-                {/* Main Content Area */}
-        <main className="flex-1 flex flex-col min-w-0 relative h-full">
-          {/* Top Bar */}
-          <header className={`h-16 border-b ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-black/5 bg-white/40'} backdrop-blur-xl flex items-center justify-between px-6 flex-shrink-0 z-20`}>
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setSidebarOpen(!isSidebarOpen)}
-                className={`p-2 transition-colors rounded-lg md:hidden ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+        {/* 2. Glass UI Layer */}
+        <div className="flex z-10 w-full h-full relative backdrop-blur-[2px]">
+          {/* Left Rail: Memory & Skills Panel */}
+          {/* Narrow Sidebar Navigation */}
+          <nav
+            className={`w-16 md:w-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/60'} backdrop-blur-xl overflow-hidden flex flex-col items-center py-4 z-30`}
+          >
+            <div
+              className="relative flex items-center justify-center w-10 h-10 mb-4 cursor-pointer"
+              onClick={() => setSidebarOpen(!isSidebarOpen)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className={`w-full h-full stroke-amber-400 ${theme === 'dark' ? 'fill-amber-950/50' : 'fill-amber-100/50'}`}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <Menu className="w-5 h-5" />
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+              <span className="absolute text-[9px] font-bold text-amber-500 translate-y-[2px]">
+                AQB
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 w-full px-2 mt-4">
+              <button
+                onClick={() => handleTabChange('Chat')}
+                title="Neural Interface"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Chat' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <MessageSquare className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-3">
-                <div className="hidden md:flex relative items-center justify-center w-9 h-9 opacity-0"></div>
-                <div>
-                  <h1 className="text-xl font-display font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-indigo-400">
-                    {activeTab === 'Chat' ? 'Neural Interface' : activeTab}
-                  </h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={`w-1.5 h-1.5 rounded-full ${
-                      modelState === 'Idle' ? 'bg-blue-500' :
-                      modelState === 'Listening' ? 'bg-pink-500 animate-pulse' :
-                      modelState === 'Reasoning' ? 'bg-teal-400 animate-bounce' : 'bg-green-500'
-                    }`} />
-                    <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
-                      Status: {modelState}
-                    </span>
+              <button
+                onClick={() => handleTabChange('Memory')}
+                title="Memory"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memory' ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Brain
+                  className={`w-5 h-5 ${isConsolidating ? 'animate-pulse text-teal-300' : ''}`}
+                />
+              </button>
+              <button
+                onClick={() => handleTabChange('Brains')}
+                title="Brains"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brains' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Cpu className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Heartbeat')}
+                title="Heartbeat"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Heartbeat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Activity className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Mind Map')}
+                title="Mind Map"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Mind Map' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Network className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Brainstorm')}
+                title="Brainstorm"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Brainstorm' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Lightbulb className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Logs')}
+                title="Logs"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Logs' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Terminal className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Telemetry')}
+                title="Telemetry"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Telemetry' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Database className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Neural Debugger')}
+                title="Neural Debugger"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Neural Debugger' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Bug className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={toggleSynth}
+                title="Ambient Synth"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all mt-auto ${isSynthPlaying ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                {isSynthPlaying ? (
+                  <Volume2 className="w-5 h-5 animate-pulse" />
+                ) : (
+                  <VolumeX className="w-5 h-5" />
+                )}
+              </button>
+              <div className="h-4" />
+
+              <button
+                onClick={() => handleTabChange('Memoria')}
+                title="Memoria"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Memoria' ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Compass className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('Workspace')}
+                title="Workspace"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-all ${activeTab === 'Workspace' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : theme === 'dark' ? 'text-slate-400 hover:text-slate-200 hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mt-auto flex flex-col gap-2 w-full px-2">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                title="Settings"
+                className={`p-3 w-full flex items-center justify-center rounded-xl transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
+          </nav>
+
+          {/* Main Content Area */}
+          {/* Main Content Area */}
+          <main className="flex-1 flex flex-col min-w-0 relative h-full">
+            {/* Top Bar */}
+            <header
+              className={`h-16 border-b ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-black/5 bg-white/40'} backdrop-blur-xl flex items-center justify-between px-6 flex-shrink-0 z-20`}
+            >
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setSidebarOpen(!isSidebarOpen)}
+                  className={`p-2 transition-colors rounded-lg md:hidden ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'}`}
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="hidden md:flex relative items-center justify-center w-9 h-9 opacity-0"></div>
+                  <div>
+                    <h1 className="text-xl font-display font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-indigo-400">
+                      {activeTab === 'Chat' ? 'Neural Interface' : activeTab}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          modelState === 'Idle'
+                            ? 'bg-blue-500'
+                            : modelState === 'Listening'
+                              ? 'bg-pink-500 animate-pulse'
+                              : modelState === 'Reasoning'
+                                ? 'bg-teal-400 animate-bounce'
+                                : 'bg-green-500'
+                        }`}
+                      />
+                      <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
+                        Status: {modelState}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {activeTab === 'Chat' && (
-                <>
-                  <button
-                    onClick={() => setIsSessionSidebarOpen(!isSessionSidebarOpen)}
-                    className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold ${
-                      isSessionSidebarOpen
-                        ? 'text-teal-400 bg-teal-500/10'
-                        : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'
-                    }`}
-                    title="Toggle Session History"
-                  >
-                    <History className="w-4 h-4" />
-                    <span className="hidden sm:inline">History</span>
-                  </button>
-                  <button 
-                    onClick={clearChat}
-                    className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold ${
-                      theme === 'dark' 
-                        ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10' 
-                        : 'text-slate-500 hover:text-red-600 hover:bg-red-500/10'
-                    }`}
-                    title="Clear Chat History"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Reset Brain</span>
-                  </button>
-                </>
-              )}
-            </div>
-          </header>
 
-          <div className="flex-1 overflow-hidden relative flex flex-col w-full h-full">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full h-full flex flex-col relative"
-              >
-            {activeTab === 'Chat' ? (
-              <div className="flex-1 flex overflow-hidden w-full h-full relative">
-                {/* Session Sidebar */}
-                {isSessionSidebarOpen && (
-                  <div className={`w-64 flex-shrink-0 border-r flex flex-col h-full z-15 animate-in slide-in-from-left-4 duration-300 ${
-                    theme === 'dark' ? 'border-white/5 bg-zinc-950/80 backdrop-blur-xl' : 'border-black/5 bg-zinc-50/80 backdrop-blur-xl'
-                  }`}>
-                    {/* Sidebar Header with New Chat Button */}
-                    <div className="p-4 border-b border-white/5">
-                      <button
-                        onClick={handleNewSession}
-                        className="w-full py-2.5 px-4 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 hover:bg-teal-500/20 hover:border-teal-500/40 transition-all font-semibold text-xs flex items-center justify-center gap-2 group shadow-lg shadow-teal-500/5"
-                      >
-                        <Plus className="w-4 h-4 text-teal-400 group-hover:rotate-90 transition-transform duration-300" />
-                        New Neural Session
-                      </button>
-                    </div>
+              <div className="flex items-center gap-2">
+                {activeTab === 'Chat' && (
+                  <>
+                    <button
+                      onClick={() => setIsSessionSidebarOpen(!isSessionSidebarOpen)}
+                      className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold ${
+                        isSessionSidebarOpen
+                          ? 'text-teal-400 bg-teal-500/10'
+                          : theme === 'dark'
+                            ? 'text-slate-400 hover:text-white hover:bg-white/5'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'
+                      }`}
+                      title="Toggle Session History"
+                    >
+                      <History className="w-4 h-4" />
+                      <span className="hidden sm:inline">History</span>
+                    </button>
+                    <button
+                      onClick={clearChat}
+                      className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold ${
+                        theme === 'dark'
+                          ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                          : 'text-slate-500 hover:text-red-600 hover:bg-red-500/10'
+                      }`}
+                      title="Clear Chat History"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Reset Brain</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </header>
 
-                    {/* Session List */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
-                      {sessions.map((sess) => {
-                        const isActive = sess.id === activeSessionId;
-                        const isEditing = sess.id === editingSessionId;
+            <div className="flex-1 overflow-hidden relative flex flex-col w-full h-full">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }}
+                  animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, scale: 1.02, filter: 'blur(8px)' }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full h-full flex flex-col relative"
+                >
+                  {activeTab === 'Chat' ? (
+                    <div className="flex-1 flex overflow-hidden w-full h-full relative">
+                      {/* Session Sidebar */}
+                      {isSessionSidebarOpen && (
+                        <div
+                          className={`w-64 flex-shrink-0 border-r flex flex-col h-full z-15 animate-in slide-in-from-left-4 duration-300 ${
+                            theme === 'dark'
+                              ? 'border-white/5 bg-zinc-950/80 backdrop-blur-xl'
+                              : 'border-black/5 bg-zinc-50/80 backdrop-blur-xl'
+                          }`}
+                        >
+                          {/* Sidebar Header with New Chat Button */}
+                          <div className="p-4 border-b border-white/5">
+                            <button
+                              onClick={handleNewSession}
+                              className="w-full py-2.5 px-4 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 hover:bg-teal-500/20 hover:border-teal-500/40 transition-all font-semibold text-xs flex items-center justify-center gap-2 group shadow-lg shadow-teal-500/5"
+                            >
+                              <Plus className="w-4 h-4 text-teal-400 group-hover:rotate-90 transition-transform duration-300" />
+                              New Neural Session
+                            </button>
+                          </div>
 
-                        return (
-                          <div
-                            key={sess.id}
-                            onClick={() => {
-                              if (!isEditing) {
-                                setActiveSessionId(sess.id);
-                              }
-                            }}
-                            className={`group w-full p-3 rounded-xl flex items-center justify-between transition-all duration-300 cursor-pointer border ${
-                              isActive
-                                ? theme === 'dark'
-                                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-300'
-                                  : 'bg-teal-50 border-teal-200 text-teal-800'
-                                : theme === 'dark'
-                                  ? 'border-transparent hover:bg-white/5 text-slate-400 hover:text-white'
-                                  : 'border-transparent hover:bg-black/5 text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                              <MessageSquare className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-teal-400 animate-pulse' : 'text-slate-500'}`} />
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editingSessionTitle}
-                                  onChange={(e) => setEditingSessionTitle(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      handleRenameSession(sess.id, editingSessionTitle);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingSessionId(null);
+                          {/* Session List */}
+                          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
+                            {sessions.map((sess) => {
+                              const isActive = sess.id === activeSessionId;
+                              const isEditing = sess.id === editingSessionId;
+
+                              return (
+                                <div
+                                  key={sess.id}
+                                  onClick={() => {
+                                    if (!isEditing) {
+                                      setActiveSessionId(sess.id);
                                     }
                                   }}
-                                  onBlur={() => handleRenameSession(sess.id, editingSessionTitle)}
-                                  className="bg-black/30 border border-teal-500/30 rounded px-1.5 py-0.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500 w-full"
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <div className="flex flex-col min-w-0">
-                                  <span className="text-xs font-semibold truncate leading-tight" title={sess.title}>
-                                    {sess.title}
-                                  </span>
-                                  {sess.updatedAt && (
-                                    <span className="text-[9px] text-slate-500/80 mt-0.5 font-medium">
-                                      {formatTimeAgo(sess.updatedAt)}
+                                  className={`group w-full p-3 rounded-xl flex items-center justify-between transition-all duration-300 cursor-pointer border ${
+                                    isActive
+                                      ? theme === 'dark'
+                                        ? 'bg-teal-500/10 border-teal-500/30 text-teal-300'
+                                        : 'bg-teal-50 border-teal-200 text-teal-800'
+                                      : theme === 'dark'
+                                        ? 'border-transparent hover:bg-white/5 text-slate-400 hover:text-white'
+                                        : 'border-transparent hover:bg-black/5 text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <MessageSquare
+                                      className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-teal-400 animate-pulse' : 'text-slate-500'}`}
+                                    />
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editingSessionTitle}
+                                        onChange={(e) => setEditingSessionTitle(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleRenameSession(sess.id, editingSessionTitle);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingSessionId(null);
+                                          }
+                                        }}
+                                        onBlur={() =>
+                                          handleRenameSession(sess.id, editingSessionTitle)
+                                        }
+                                        className="bg-black/30 border border-teal-500/30 rounded px-1.5 py-0.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500 w-full"
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      <div className="flex flex-col min-w-0">
+                                        <span
+                                          className="text-xs font-semibold truncate leading-tight"
+                                          title={sess.title}
+                                        >
+                                          {sess.title}
+                                        </span>
+                                        {sess.updatedAt && (
+                                          <span className="text-[9px] text-slate-500/80 mt-0.5 font-medium">
+                                            {formatTimeAgo(sess.updatedAt)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  {!isEditing && (
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingSessionId(sess.id);
+                                          setEditingSessionTitle(sess.title);
+                                        }}
+                                        className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-all"
+                                        title="Rename Synapse"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                      {sess.id !== 'default' && (
+                                        <button
+                                          onClick={(e) => handleDeleteSession(sess.id, e)}
+                                          className="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400 transition-all"
+                                          title="Prune Thread"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Main Chat Viewport */}
+                      <div className="flex-1 overflow-hidden relative flex flex-col h-full min-w-0">
+                        <div className="flex-1 overflow-hidden relative flex flex-col">
+                          {/* Center Presence Orb */}
+                          <div className="absolute inset-0 flex items-center justify-center z-0">
+                            <PresenceOrb
+                              state={modelState}
+                              depth={depth}
+                              isSpeaking={isSpeaking}
+                              cognitiveLoad={Math.min(1, Math.max(0, efeScore))}
+                            />
+                          </div>
+                          <InsightReveal
+                            insight={activeInsight}
+                            onSave={handleSaveInsight}
+                            onDismiss={handleDismissInsight}
+                            onTimeout={handleInsightTimeout}
+                          />
+                          <InsightFeed
+                            onReward={(r, id) => {
+                              rlAgent.current?.applyDelayedInsightReward(r, id);
+                            }}
+                          />
+
+                          {/* Messages */}
+                          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 z-10 scroll-smooth">
+                            <div className="max-w-3xl mx-auto space-y-8 pb-10">
+                              <AnimatePresence initial={false}>
+                                {activeMessages.map((msg) => (
+                                  <motion.div
+                                    key={msg.id}
+                                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}
+                                  >
+                                    <div className="flex flex-col gap-2 w-full max-w-full">
+                                      {msg.content &&
+                                        msg.content !== '{}' &&
+                                        msg.content !== '""' && (
+                                          <div
+                                            onContextMenu={(e) => {
+                                              e.preventDefault();
+                                              setContextMenu({
+                                                x: e.clientX,
+                                                y: e.clientY,
+                                                msgId: msg.id,
+                                              });
+                                            }}
+                                            className={`max-w-[80%] p-5 rounded-3xl transition-all duration-300 ${
+                                              msg.role === 'user'
+                                                ? 'bg-gradient-to-br from-indigo-600/90 to-purple-800/90 border border-indigo-400/30 text-white shadow-lg shadow-indigo-900/20 backdrop-blur-xl rounded-tr-sm self-end'
+                                                : theme === 'dark'
+                                                  ? 'bg-white/5 border border-white/10 text-slate-200 backdrop-blur-xl shadow-2xl rounded-tl-sm self-start'
+                                                  : 'bg-white/80 border border-black/5 text-slate-800 backdrop-blur-xl shadow-lg rounded-tl-sm self-start'
+                                            }`}
+                                          >
+                                            {msg.role === 'ai' ? (
+                                              <div className="flex flex-col gap-5 w-full">
+                                                <div className="flex items-start gap-4">
+                                                  <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0 mt-1">
+                                                    <Cpu className="w-4 h-4 text-teal-400" />
+                                                  </div>
+                                                  <div
+                                                    className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}
+                                                  >
+                                                    <TypewriterText
+                                                      text={
+                                                        typeof msg.content === 'string'
+                                                          ? msg.content
+                                                          : JSON.stringify(msg.content) || ''
+                                                      }
+                                                      isTyping={!!msg.isTyping}
+                                                      onComplete={() => {
+                                                        setMessages((prev) =>
+                                                          prev.map((m) =>
+                                                            m.id === msg.id
+                                                              ? { ...m, isTyping: false }
+                                                              : m,
+                                                          ),
+                                                        );
+                                                      }}
+                                                    />
+                                                  </div>
+                                                </div>
+                                                {msg.cognitiveLog && (
+                                                  <div className="mt-4 border-t border-white/5 pt-4">
+                                                    <details className="group/cog">
+                                                      <summary className="flex items-center gap-2 cursor-pointer text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-400 transition-colors list-none">
+                                                        <div className="p-1 rounded-md bg-white/5 group-hover/cog:bg-indigo-500/20 transition-colors">
+                                                          <Zap className="w-3 h-3" />
+                                                        </div>
+                                                        <span>Cognitive Process Trace</span>
+                                                      </summary>
+                                                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <div
+                                                          className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}
+                                                        >
+                                                          <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">
+                                                            1. Draft
+                                                          </span>
+                                                          <p
+                                                            className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}
+                                                          >
+                                                            {typeof msg.cognitiveLog.draft ===
+                                                            'string'
+                                                              ? msg.cognitiveLog.draft
+                                                              : JSON.stringify(
+                                                                  msg.cognitiveLog.draft,
+                                                                )}
+                                                          </p>
+                                                        </div>
+                                                        <div
+                                                          className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}
+                                                        >
+                                                          <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">
+                                                            2. Recollection
+                                                          </span>
+                                                          <p
+                                                            className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}
+                                                          >
+                                                            {typeof msg.cognitiveLog
+                                                              .recollection === 'string'
+                                                              ? msg.cognitiveLog.recollection
+                                                              : JSON.stringify(
+                                                                  msg.cognitiveLog.recollection,
+                                                                )}
+                                                          </p>
+                                                        </div>
+                                                        <div
+                                                          className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}
+                                                        >
+                                                          <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">
+                                                            3. Reflection
+                                                          </span>
+                                                          <p
+                                                            className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}
+                                                          >
+                                                            {typeof msg.cognitiveLog.reflection ===
+                                                            'string'
+                                                              ? msg.cognitiveLog.reflection
+                                                              : JSON.stringify(
+                                                                  msg.cognitiveLog.reflection,
+                                                                )}
+                                                          </p>
+                                                        </div>
+                                                        <div
+                                                          className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}
+                                                        >
+                                                          <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">
+                                                            4. Synthesis
+                                                          </span>
+                                                          <p
+                                                            className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}
+                                                          >
+                                                            {typeof msg.cognitiveLog.reiteration ===
+                                                            'string'
+                                                              ? msg.cognitiveLog.reiteration
+                                                              : JSON.stringify(
+                                                                  msg.cognitiveLog.reiteration,
+                                                                )}
+                                                          </p>
+                                                        </div>
+                                                      </div>
+                                                    </details>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <p className="whitespace-pre-wrap">
+                                                {typeof msg.content === 'string'
+                                                  ? msg.content
+                                                  : JSON.stringify(msg.content)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+
+                                      {msg.systemUI ? (
+                                        <div
+                                          className={`w-full max-w-2xl ${msg.role === 'user' ? 'self-end' : 'self-start'} mt-2`}
+                                        >
+                                          {msg.systemUI === 'help' && (
+                                            <HelpWidget
+                                              commands={msg.systemUIData?.commands || []}
+                                              onCommandClick={(cmd) => {
+                                                setInput(cmd);
+                                                addLog(
+                                                  `Neural shortcut prepared: ${cmd}`,
+                                                  'INFO',
+                                                  'UI',
+                                                );
+                                              }}
+                                            />
+                                          )}
+                                          {msg.systemUI === 'vitals' && (
+                                            <VitalsWidget
+                                              vitals={msg.systemUIData?.vitals || vitals}
+                                              memoryCount={
+                                                msg.systemUIData?.memoryCount || memories.length
+                                              }
+                                              logCount={
+                                                msg.systemUIData?.logCount || systemLogs.length
+                                              }
+                                            />
+                                          )}
+                                          {msg.systemUI === 'logs' && (
+                                            <LogsWidget logs={msg.systemUIData?.logs || []} />
+                                          )}
+                                          {msg.systemUI === 'diagnose' && (
+                                            <DiagnosticWidget
+                                              uid={user?.uid || 'anonymous'}
+                                              db={db}
+                                              auth={auth}
+                                              addLog={(m, l, s) =>
+                                                addLog(m, l || 'INFO', s || 'DIAGNOSTIC')
+                                              }
+                                            />
+                                          )}
+                                          {msg.systemUI === 'reboot' && (
+                                            <RebootWidget
+                                              onComplete={() => {
+                                                addLog(
+                                                  'Reboot sequence completed. Synapses re-synchronized.',
+                                                  'NEURAL',
+                                                  'SYSTEM',
+                                                );
+                                                setModelState('Idle');
+                                              }}
+                                            />
+                                          )}
+                                          {msg.systemUI === 'qpu-erd' && (
+                                            <QpuErdWidget text={msg.systemUIData?.text} />
+                                          )}
+                                          {msg.systemUI === 'error-card' && (
+                                            <SelfHealingErrorCard
+                                              errorMessage={
+                                                msg.systemUIData?.errorMessage ||
+                                                msg.content ||
+                                                'Connection disruption'
+                                              }
+                                              traceId={msg.systemUIData?.traceId}
+                                              addLog={(m, l) => addLog(m, l, 'DIAGNOSTIC')}
+                                              onOfflineSimulate={() => {
+                                                addLog(
+                                                  'Engaging neural offline simulation mode...',
+                                                  'WARN',
+                                                  'SYSTEM',
+                                                );
+                                                const mockAiData = {
+                                                  role: 'ai' as const,
+                                                  content:
+                                                    'Offline Self-Healing Simulation Mode engaged! I have bypassed API latency channels and established a direct local loopback connection. Ask me anything, and I will generate local rule-based responses.',
+                                                  timestamp: Date.now(),
+                                                  traceId: msg.systemUIData?.traceId,
+                                                };
+                                                if (user) {
+                                                  addDoc(
+                                                    collection(db, 'users', user.uid, 'chats'),
+                                                    mockAiData,
+                                                  );
+                                                } else {
+                                                  setMessages((prev) => [
+                                                    ...prev,
+                                                    { id: `mock-${Date.now()}`, ...mockAiData },
+                                                  ]);
+                                                }
+                                              }}
+                                              onRetry={async () => {
+                                                addLog(
+                                                  'Attempting synaptic retry transmission...',
+                                                  'WARN',
+                                                  'API',
+                                                );
+                                                const lastUserMsg = [...messages]
+                                                  .reverse()
+                                                  .find((m) => m.role === 'user');
+                                                if (lastUserMsg && lastUserMsg.content) {
+                                                  setInput(lastUserMsg.content);
+                                                  setMessages((prev) =>
+                                                    prev.filter((m) => m.id !== msg.id),
+                                                  );
+                                                  if (user) {
+                                                    try {
+                                                      const errorDocRef = doc(
+                                                        db,
+                                                        'users',
+                                                        user.uid,
+                                                        'chats',
+                                                        msg.id,
+                                                      );
+                                                      await deleteDoc(errorDocRef);
+                                                    } catch (e) {
+                                                      console.warn(
+                                                        'Could not delete stale error doc from firestore',
+                                                        e,
+                                                      );
+                                                    }
+                                                  }
+                                                  setTimeout(() => {
+                                                    handleSend();
+                                                  }, 100);
+                                                } else {
+                                                  addLog(
+                                                    'No preceding user message found to retry.',
+                                                    'ERROR',
+                                                    'SYSTEM',
+                                                  );
+                                                }
+                                              }}
+                                            />
+                                          )}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              </AnimatePresence>
+
+                              {/* Live Debate Progress Panel (XState-driven) */}
+                              {!debateState.matches('idle') && (
+                                <div className="p-5 rounded-2xl border border-teal-500/20 bg-black/60 shadow-[0_0_30px_rgba(20,184,166,0.05)] space-y-4 animate-pulse">
+                                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                    <div className="flex items-center gap-2">
+                                      <Network className="w-4 h-4 text-teal-400 animate-spin" />
+                                      <span className="text-xs font-bold uppercase tracking-widest text-teal-300">
+                                        Active Debate Chamber
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20">
+                                      <span className="text-[9px] font-mono font-bold text-teal-400 uppercase">
+                                        State: {String(debateState.value).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Topic display */}
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block">
+                                      Topic of Inquiry
                                     </span>
+                                    <p className="text-xs font-medium text-slate-300 italic">
+                                      "{debateState.context.topic}"
+                                    </p>
+                                  </div>
+
+                                  {/* Active agent visualization */}
+                                  {debateState.context.activeAgentId && (
+                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
+                                      <div className="relative">
+                                        <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20">
+                                          <Cpu className="w-5 h-5 text-teal-400" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-black animate-ping" />
+                                        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-black" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-[9px] text-teal-400 uppercase tracking-widest font-bold">
+                                          Active Agent Reasoning
+                                        </span>
+                                        <h4 className="text-xs font-bold text-slate-200 capitalize">
+                                          {debateState.context.activeAgentId === 'logician'
+                                            ? 'Analytical Logician'
+                                            : debateState.context.activeAgentId === 'catalyst'
+                                              ? 'Creative Catalyst'
+                                              : 'Adversarial Auditor'}
+                                        </h4>
+                                      </div>
+                                      <span className="text-[10px] font-mono text-slate-500">
+                                        Turn {debateState.context.turns + 1} of{' '}
+                                        {debateState.context.maxTurns}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Live State Vector gauges */}
+                                  <div className="space-y-2.5">
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block">
+                                      Cognitive State Vector Telemetry
+                                    </span>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                      {[
+                                        {
+                                          name: 'Coherence',
+                                          val: debateState.context.currentStateVector[0],
+                                        },
+                                        {
+                                          name: 'Novelty',
+                                          val: debateState.context.currentStateVector[1],
+                                        },
+                                        {
+                                          name: 'Factuality',
+                                          val: debateState.context.currentStateVector[2],
+                                        },
+                                        {
+                                          name: 'Turn Parity',
+                                          val: debateState.context.currentStateVector[3],
+                                        },
+                                        {
+                                          name: 'Agreement',
+                                          val: debateState.context.currentStateVector[4],
+                                        },
+                                        {
+                                          name: 'Tension',
+                                          val: debateState.context.currentStateVector[5],
+                                        },
+                                      ].map((dim) => (
+                                        <div
+                                          key={dim.name}
+                                          className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex flex-col gap-1.5"
+                                        >
+                                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">
+                                            {dim.name}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                              <div
+                                                className="h-full rounded-full transition-all duration-500"
+                                                style={{
+                                                  width: `${(dim.val ?? 0.5) * 100}%`,
+                                                  backgroundColor:
+                                                    dim.name === 'Coherence'
+                                                      ? '#818cf8'
+                                                      : dim.name === 'Novelty'
+                                                        ? '#fbbf24'
+                                                        : dim.name === 'Factuality'
+                                                          ? '#34d399'
+                                                          : dim.name === 'Turn Parity'
+                                                            ? '#c084fc'
+                                                            : dim.name === 'Agreement'
+                                                              ? '#2dd4bf'
+                                                              : '#f43f5e',
+                                                }}
+                                              />
+                                            </div>
+                                            <span className="text-[9px] font-mono font-bold text-slate-400">
+                                              {(dim.val ?? 0.5).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Current logs generated so far */}
+                                  {debateState.context.debateLog.length > 0 && (
+                                    <div className="space-y-2 border-t border-white/5 pt-3">
+                                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">
+                                        Live Transcript Logs
+                                      </span>
+                                      <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
+                                        {debateState.context.debateLog.map((log, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="p-2.5 rounded-lg bg-white/5 border border-white/5"
+                                          >
+                                            <div className="flex items-center justify-between mb-1">
+                                              <span className="text-[9px] font-bold text-teal-400 uppercase tracking-wider">
+                                                {log.agent}
+                                              </span>
+                                              <span className="text-[8px] font-mono text-slate-500 uppercase tracking-tight">
+                                                Move: {log.move}
+                                              </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 italic leading-relaxed line-clamp-2">
+                                              "{log.text}"
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               )}
-                            </div>
-
-                            {/* Action Buttons */}
-                            {!isEditing && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingSessionId(sess.id);
-                                    setEditingSessionTitle(sess.title);
-                                  }}
-                                  className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-all"
-                                  title="Rename Synapse"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                                {sess.id !== 'default' && (
-                                  <button
-                                    onClick={(e) => handleDeleteSession(sess.id, e)}
-                                    className="p-1 hover:bg-red-500/20 rounded text-slate-400 hover:text-red-400 transition-all"
-                                    title="Prune Thread"
+                              {/* Reasoning Indicator */}
+                              {modelState === 'Reasoning' && !isDebateMode && (
+                                <div className="flex justify-start w-full animate-in fade-in slide-in-from-left-4 duration-500">
+                                  <div
+                                    className={`max-w-[80%] p-5 rounded-2xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-black/5 border border-black/5'} backdrop-blur-md rounded-tl-sm flex items-center gap-3`}
                                   >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Main Chat Viewport */}
-                <div className="flex-1 overflow-hidden relative flex flex-col h-full min-w-0">
-                  <div className="flex-1 overflow-hidden relative flex flex-col">
-                    {/* Center Presence Orb */}
-                    <div className="absolute inset-0 flex items-center justify-center z-0">
-                      <PresenceOrb state={modelState} depth={depth} isSpeaking={isSpeaking} cognitiveLoad={Math.min(1, Math.max(0, efeScore))} />
-                    </div>
-                    <InsightReveal 
-                      insight={activeInsight}
-                      onSave={handleSaveInsight}
-                      onDismiss={handleDismissInsight}
-                      onTimeout={handleInsightTimeout}
-                    />
-                    <InsightFeed onReward={(r, id) => { rlAgent.current?.applyDelayedInsightReward(r, id); }} />
-                      
-                    {/* Messages */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 z-10 scroll-smooth">
-                      <div className="max-w-3xl mx-auto space-y-8 pb-10">
-                        <AnimatePresence initial={false}>
-                        {activeMessages.map((msg) => (
-                  <motion.div 
-                    key={msg.id} 
-                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}
-                  >
-                    <div className="flex flex-col gap-2 w-full max-w-full">
-                      {msg.content && msg.content !== "{}" && msg.content !== '""' && (
-                        <div 
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setContextMenu({ x: e.clientX, y: e.clientY, msgId: msg.id });
-                          }}
-                          className={`max-w-[80%] p-5 rounded-3xl transition-all duration-300 ${
-                          msg.role === 'user' 
-                            ? 'bg-gradient-to-br from-indigo-600/90 to-purple-800/90 border border-indigo-400/30 text-white shadow-lg shadow-indigo-900/20 backdrop-blur-xl rounded-tr-sm self-end'
-                            : theme === 'dark' 
-                              ? 'bg-white/5 border border-white/10 text-slate-200 backdrop-blur-xl shadow-2xl rounded-tl-sm self-start'
-                              : 'bg-white/80 border border-black/5 text-slate-800 backdrop-blur-xl shadow-lg rounded-tl-sm self-start'
-                        }`}>
-                          {msg.role === 'ai' ? (
-                            <div className="flex flex-col gap-5 w-full">
-                              <div className="flex items-start gap-4">
-                                <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0 mt-1">
-                                  <Cpu className="w-4 h-4 text-teal-400" />
-                                </div>
-                                <div className={`leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                                  <TypewriterText 
-                                    text={typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) || ''}
-                                    isTyping={!!msg.isTyping}
-                                    onComplete={() => {
-                                      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isTyping: false } : m))
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              {msg.cognitiveLog && (
-                                <div className="mt-4 border-t border-white/5 pt-4">
-                                  <details className="group/cog">
-                                    <summary className="flex items-center gap-2 cursor-pointer text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-400 transition-colors list-none">
-                                      <div className="p-1 rounded-md bg-white/5 group-hover/cog:bg-indigo-500/20 transition-colors">
-                                        <Zap className="w-3 h-3" />
-                                      </div>
-                                      <span>Cognitive Process Trace</span>
-                                    </summary>
-                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
-                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">1. Draft</span>
-                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.draft === 'string' ? msg.cognitiveLog.draft : JSON.stringify(msg.cognitiveLog.draft)}</p>
-                                      </div>
-                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
-                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">2. Recollection</span>
-                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.recollection === 'string' ? msg.cognitiveLog.recollection : JSON.stringify(msg.cognitiveLog.recollection)}</p>
-                                      </div>
-                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
-                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">3. Reflection</span>
-                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.reflection === 'string' ? msg.cognitiveLog.reflection : JSON.stringify(msg.cognitiveLog.reflection)}</p>
-                                      </div>
-                                      <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-black/5 border-black/5'}`}>
-                                        <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1">4. Synthesis</span>
-                                        <p className={`text-xs italic line-clamp-3 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{typeof msg.cognitiveLog.reiteration === 'string' ? msg.cognitiveLog.reiteration : JSON.stringify(msg.cognitiveLog.reiteration)}</p>
+                                    <div className="w-8 h-8 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
+                                      <Brain className="w-4 h-4 text-teal-400 animate-pulse" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <span className="text-[9px] text-teal-400 uppercase tracking-widest font-bold font-mono">
+                                        Reasoning...
+                                      </span>
+                                      <div className="flex gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce [animation-delay:-0.3s]" />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce [animation-delay:-0.15s]" />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce" />
                                       </div>
                                     </div>
-                                  </details>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div ref={messagesEndRef} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Control Bar */}
+                        <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md z-20">
+                          <div className="max-w-3xl mx-auto">
+                            {/* Cognition Depth Slider */}
+                            <div className="mb-4 flex flex-col md:flex-row items-center justify-between gap-4 px-2">
+                              <div className="flex items-center gap-6">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
+                                    <Sliders className="w-3 h-3" /> Cognition Depth
+                                  </span>
+                                  <div className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5">
+                                    {(
+                                      ['Fast', 'Balanced', 'Deep Reasoning'] as CognitionDepth[]
+                                    ).map((d) => (
+                                      <button
+                                        key={d}
+                                        onClick={() => setDepth(d)}
+                                        className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded-md transition-all ${
+                                          depth === d
+                                            ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                      >
+                                        {d}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col border-l border-white/5 pl-6">
+                                  <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
+                                    <Network className="w-3 h-3" /> Consensus Mode
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsDebateMode(!isDebateMode)}
+                                    className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-wider rounded-md transition-all border ${
+                                      isDebateMode
+                                        ? 'bg-teal-500/40 text-teal-100 border-teal-400'
+                                        : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'
+                                    }`}
+                                  >
+                                    <div
+                                      className={`w-2 h-2 rounded-full ${isDebateMode ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`}
+                                    />
+                                    {isDebateMode ? 'ACTIVE' : 'OFF'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Predictive Shortcuts */}
+                            {activeMessages.length > 0 &&
+                              activeMessages[activeMessages.length - 1].role === 'ai' &&
+                              activeMessages[activeMessages.length - 1].suggestedShortcuts && (
+                                <div className="flex flex-wrap gap-2 mb-4 px-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                  {activeMessages[
+                                    activeMessages.length - 1
+                                  ].suggestedShortcuts?.map((shortcut, i) => (
+                                    <button
+                                      key={i}
+                                      onClick={() => {
+                                        setInput(shortcut);
+                                        // Optional: auto-send if desired, but letting user edit is safer
+                                        addLog(
+                                          `Neural shortcut selected: ${shortcut}`,
+                                          'NEURAL',
+                                          'UI',
+                                        );
+                                      }}
+                                      className="px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 hover:border-teal-500/40 transition-all flex items-center gap-2 group"
+                                    >
+                                      <Zap className="w-3 h-3 text-teal-500 group-hover:scale-125 transition-transform" />
+                                      {shortcut}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                            {/* SLM Indicator */}
+                            <div className="px-4 py-1 flex items-center justify-between text-xs text-slate-500 font-mono">
+                              {slmLoaded ? (
+                                <span className="text-teal-500 flex items-center gap-2">
+                                  <Zap className="w-3 h-3" /> System 1 (SLM) Active
+                                </span>
+                              ) : slmProgress ? (
+                                <span className="text-amber-500 flex items-center gap-2">
+                                  <Loader2 className="w-3 h-3 animate-spin" /> Loading System 1
+                                  Model ({slmProgress.file} -{' '}
+                                  {Math.round(slmProgress.progress || 0)}%)
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-2">
+                                  <Cpu className="w-3 h-3" /> Initializing System 1...
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Input Area */}
+                            <form
+                              onSubmit={handleSend}
+                              className={`relative flex items-end gap-2 border rounded-3xl p-3 transition-all duration-300 focus-within:border-indigo-500/60 focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:shadow-[0_0_40px_rgba(99,102,241,0.15)] ${
+                                theme === 'dark'
+                                  ? 'bg-[#0a0a0f] border-white/10'
+                                  : 'bg-white border-black/10 shadow-sm'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={toggleRecording}
+                                className={`p-3 rounded-full transition-colors ${isRecording ? 'text-red-500 animate-pulse bg-red-500/10' : theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5'}`}
+                              >
+                                <Paperclip className="w-5 h-5" />
+                              </button>
+
+                              <textarea
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                  }
+                                }}
+                                onFocus={() => modelState === 'Idle' && setModelState('Listening')}
+                                onBlur={() =>
+                                  modelState === 'Listening' && !input && setModelState('Idle')
+                                }
+                                placeholder="Initiate dialogue..."
+                                className={`flex-1 bg-transparent border-none focus:ring-0 resize-none py-3 min-h-[48px] max-h-[200px] font-sans ${
+                                  theme === 'dark'
+                                    ? 'text-slate-200 placeholder:text-slate-600'
+                                    : 'text-slate-800 placeholder:text-slate-400'
+                                }`}
+                                rows={1}
+                              />
+
+                              <button
+                                type="button"
+                                className={`p-3 rounded-full transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5'}`}
+                              >
+                                <Mic className="w-5 h-5" />
+                              </button>
+
+                              <button
+                                type="submit"
+                                disabled={
+                                  !input.trim() ||
+                                  (modelState !== 'Idle' && modelState !== 'Listening')
+                                }
+                                className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-indigo-400/50 rounded-full hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed transition-all"
+                              >
+                                <Send className="w-5 h-5" />
+                              </button>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6 flex-1 overflow-y-auto custom-scrollbar w-full h-full">
+                      {activeTab === 'Memory' ? (
+                        <MemoryTab
+                          memoryViewMode={memoryViewMode}
+                          setMemoryViewMode={setMemoryViewMode}
+                          isConsolidating={isConsolidating}
+                          memories={memories}
+                          handleManualConsolidate={handleManualConsolidate}
+                          memorySearchQuery={memorySearchQuery}
+                          setMemorySearchQuery={setMemorySearchQuery}
+                          selectedMemoryIds={selectedMemoryIds}
+                          handleSelectAllMemories={handleSelectAllMemories}
+                          handleClearMemorySelection={handleClearMemorySelection}
+                          handleBulkDelete={handleBulkDelete}
+                          isBulkDeleting={isBulkDeleting}
+                          handleBulkUpdateStrength={handleBulkUpdateStrength}
+                          isBulkReinforcing={isBulkReinforcing}
+                          isBulkDecaying={isBulkDecaying}
+                          isBulkTagging={isBulkTagging}
+                          bulkTagInput={bulkTagInput}
+                          setBulkTagInput={setBulkTagInput}
+                          handleBulkTag={handleBulkTag}
+                          selectedTagFilter={selectedTagFilter}
+                          setSelectedTagFilter={setSelectedTagFilter}
+                          filteredMemories={filteredMemories}
+                          handleSingleUpdateStrength={handleSingleUpdateStrength}
+                          togglePinMemory={togglePinMemory}
+                          removeMemory={removeMemory}
+                          setSelectedMemoryIds={setSelectedMemoryIds}
+                          setModelState={setModelState}
+                          fetchInsight={fetchInsight}
+                          setActiveInsight={setActiveInsight}
+                          startDateFilter={startDateFilter}
+                          setStartDateFilter={setStartDateFilter}
+                          endDateFilter={endDateFilter}
+                          setEndDateFilter={setEndDateFilter}
+                          handleAddMemory={handleAddMemory}
+                          newMemory={newMemory}
+                          setNewMemory={setNewMemory}
+                        />
+                      ) : activeTab === 'Brains' ? (
+                        <BrainsTab
+                          neuralSway={neuralSway}
+                          triggerSwayRNG={triggerSwayRNG}
+                          isSpinning={isSpinning}
+                          PERSONAS={allPersonas}
+                          activePersona={activePersona}
+                          setActivePersona={setActivePersona}
+                          agentStats={agentStats}
+                          addLog={addLog}
+                          modelState={modelState}
+                          skills={skills}
+                          toggleSkill={toggleSkill}
+                          depth={depth}
+                          setDepth={setDepth}
+                          isAutonomyActive={isAutonomyActive}
+                          setIsAutonomyActive={setIsAutonomyActive}
+                          autonomyInterval={autonomyInterval}
+                          setAutonomyInterval={setAutonomyInterval}
+                          cognitiveDecisions={cognitiveDecisions}
+                          triggerManualStep={runAgentStep}
+                        />
+                      ) : activeTab === 'Heartbeat' ? (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6 h-full overflow-y-auto custom-scrollbar pr-2 pb-10">
+                          <VitalsDashboard />
+                          <SentimentDriftChart memories={memories} />
+                          <div className="grid grid-cols-1 gap-4">
+                            <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
+                              <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <Activity className="w-12 h-12 text-teal-400" />
+                              </div>
+                              <h3 className="text-teal-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4">
+                                <InfoTooltip label="Neural Resonance">
+                                  A composite frequency score reflecting the harmonic alignment of
+                                  RL exploration and LLM processing stability.
+                                </InfoTooltip>
+                              </h3>
+                              <div className="flex items-end gap-2 mb-2">
+                                <span className="text-4xl font-mono font-bold text-white leading-none">
+                                  {vitals.resonance.toFixed(1)}
+                                </span>
+                                <span className="text-teal-500 text-xs font-bold mb-1">Hz</span>
+                              </div>
+                              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-teal-500 transition-all duration-1000"
+                                  style={{ width: `${vitals.resonance}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-2">
+                                  <InfoTooltip label="Cognitive Entropy">
+                                    The degree of chaos or uncertainty in the agent's current state
+                                    evaluation matrix.
+                                  </InfoTooltip>
+                                </h4>
+                                <span className="text-xl font-mono text-white">
+                                  {vitals.entropy.toFixed(2)}%
+                                </span>
+                              </div>
+                              <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-2">
+                                  <InfoTooltip label="Stability Matrix">
+                                    Overall system health coefficient derived from error rates and
+                                    memory fragmentation.
+                                  </InfoTooltip>
+                                </h4>
+                                <span className="text-xl font-mono text-white">
+                                  {vitals.stability.toFixed(2)}%
+                                </span>
+                              </div>
+                            </div>
+                            <PolicyConvergenceChart data={qValueHistory} />
+                          </div>
+
+                          <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
+                            <h3 className="text-amber-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                              <Network className="w-3 h-3" />
+                              <InfoTooltip label="System Diagnostics">
+                                Hardware and network layer telemetry for the agent's hosting
+                                environment.
+                              </InfoTooltip>
+                            </h3>
+                            <div className="space-y-3">
+                              {[
+                                {
+                                  label: 'CPU Load',
+                                  value: `${vitals.cpu.toFixed(1)}%`,
+                                  status: vitals.cpu > 80 ? 'Heavy' : 'Optimal',
+                                  tip: 'Processor utilization across the container runtime.',
+                                },
+                                {
+                                  label: 'Memory Usage',
+                                  value: `${vitals.memory.toFixed(1)}%`,
+                                  status: vitals.memory > 85 ? 'Critical' : 'Nominal',
+                                  tip: 'RAM allocation relative to the container limit.',
+                                },
+                                {
+                                  label: 'Avg Latency',
+                                  value: `${vitals.latency.toFixed(0)}ms`,
+                                  status: vitals.latency > 2000 ? 'Slow' : 'Stable',
+                                  tip: 'Mean response time for API invocations and inference cycles.',
+                                },
+                                {
+                                  label: 'Recent Errors',
+                                  value: vitals.errors,
+                                  status: vitals.errors > 0 ? 'Warning' : 'Healthy',
+                                  tip: 'Count of caught exceptions or failed operations in the current session.',
+                                },
+                              ].map((stat, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
+                                >
+                                  <InfoTooltip
+                                    label={
+                                      <span className="text-xs text-slate-500">{stat.label}</span>
+                                    }
+                                  >
+                                    {stat.tip}
+                                  </InfoTooltip>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs font-mono text-slate-300">
+                                      {stat.value}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold uppercase tracking-tighter ${
+                                        stat.status === 'Optimal' ||
+                                        stat.status === 'Nominal' ||
+                                        stat.status === 'Stable' ||
+                                        stat.status === 'Healthy'
+                                          ? 'text-teal-500'
+                                          : stat.status === 'Warning' || stat.status === 'Heavy'
+                                            ? 'text-amber-500'
+                                            : 'text-red-500'
+                                      }`}
+                                    >
+                                      {stat.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Self-Healing Maintenance Log */}
+                          <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
+                            <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                              <Zap className="w-3 h-3" />
+                              <InfoTooltip label="Self-Healing Log">
+                                Autonomous background processes the agent has executed to repair
+                                context or resolve deadlocks.
+                              </InfoTooltip>
+                            </h3>
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                              {maintenanceHistory.length > 0 ? (
+                                maintenanceHistory.map((log, i) => (
+                                  <div
+                                    key={i}
+                                    className="p-2 border border-white/5 rounded-lg bg-white/5 space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold text-slate-300">
+                                        {log.actionTaken}
+                                      </span>
+                                      <span className="text-[8px] text-slate-500">
+                                        {new Date(log.timestamp).toLocaleTimeString()}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-[9px]">
+                                      <span className="text-slate-500">
+                                        CPU: {(log.cpuLoad * 100).toFixed(1)}%
+                                      </span>
+                                      <span className="text-slate-500">
+                                        MEM: {(log.memoryUsageRatio * 100).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-center py-4">
+                                  <span className="text-[10px] text-slate-600">
+                                    No recent maintenance actions.
+                                  </span>
                                 </div>
                               )}
                             </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap">{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</p>
-                          )}
-                        </div>
-                      )}
-                      
-                      {msg.systemUI ? (
-                      <div className={`w-full max-w-2xl ${msg.role === 'user' ? 'self-end' : 'self-start'} mt-2`}>
-                        {msg.systemUI === 'help' && (
-                          <HelpWidget 
-                            commands={msg.systemUIData?.commands || []} 
-                            onCommandClick={(cmd) => {
-                              setInput(cmd);
-                              addLog(`Neural shortcut prepared: ${cmd}`, 'INFO', 'UI');
-                            }} 
-                          />
-                        )}
-                        {msg.systemUI === 'vitals' && (
-                          <VitalsWidget 
-                            vitals={msg.systemUIData?.vitals || vitals} 
-                            memoryCount={msg.systemUIData?.memoryCount || memories.length} 
-                            logCount={msg.systemUIData?.logCount || systemLogs.length} 
-                          />
-                        )}
-                        {msg.systemUI === 'logs' && (
-                          <LogsWidget logs={msg.systemUIData?.logs || []} />
-                        )}
-                        {msg.systemUI === 'diagnose' && (
-                          <DiagnosticWidget 
-                            uid={user?.uid || "anonymous"} 
-                            db={db} 
-                            auth={auth} 
-                            addLog={(m, l, s) => addLog(m, l || 'INFO', s || 'DIAGNOSTIC')} 
-                          />
-                        )}
-                        {msg.systemUI === 'reboot' && (
-                          <RebootWidget 
-                            onComplete={() => {
-                              addLog("Reboot sequence completed. Synapses re-synchronized.", "NEURAL", "SYSTEM");
-                              setModelState('Idle');
-                            }} 
-                          />
-                        )}
-                        {msg.systemUI === 'qpu-erd' && (
-                          <QpuErdWidget text={msg.systemUIData?.text} />
-                        )}
-                        {msg.systemUI === 'error-card' && (
-                          <SelfHealingErrorCard 
-                            errorMessage={msg.systemUIData?.errorMessage || msg.content || "Connection disruption"} 
-                            traceId={msg.systemUIData?.traceId} 
-                            addLog={(m, l) => addLog(m, l, 'DIAGNOSTIC')} 
-                            onOfflineSimulate={() => {
-                              addLog("Engaging neural offline simulation mode...", "WARN", "SYSTEM");
-                              const mockAiData = {
-                                role: 'ai' as const,
-                                content: "Offline Self-Healing Simulation Mode engaged! I have bypassed API latency channels and established a direct local loopback connection. Ask me anything, and I will generate local rule-based responses.",
-                                timestamp: Date.now(),
-                                traceId: msg.systemUIData?.traceId
-                              };
-                              if (user) {
-                                addDoc(collection(db, "users", user.uid, "chats"), mockAiData);
-                              } else {
-                                setMessages(prev => [...prev, { id: `mock-${Date.now()}`, ...mockAiData }]);
-                              }
-                            }}
-                            onRetry={async () => {
-                              addLog("Attempting synaptic retry transmission...", "WARN", "API");
-                              const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-                              if (lastUserMsg && lastUserMsg.content) {
-                                setInput(lastUserMsg.content);
-                                setMessages(prev => prev.filter(m => m.id !== msg.id));
-                                if (user) {
-                                  try {
-                                    const errorDocRef = doc(db, "users", user.uid, "chats", msg.id);
-                                    await deleteDoc(errorDocRef);
-                                  } catch (e) {
-                                    console.warn("Could not delete stale error doc from firestore", e);
-                                  }
-                                }
-                                setTimeout(() => {
-                                  handleSend();
-                                }, 100);
-                              } else {
-                                addLog("No preceding user message found to retry.", "ERROR", "SYSTEM");
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
-                      ) : null}
-                    </div>
-                  </motion.div>
-                ))}
-                </AnimatePresence>
-
-                {/* Live Debate Progress Panel (XState-driven) */}
-                {!debateState.matches('idle') && (
-                  <div className="p-5 rounded-2xl border border-teal-500/20 bg-black/60 shadow-[0_0_30px_rgba(20,184,166,0.05)] space-y-4 animate-pulse">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Network className="w-4 h-4 text-teal-400 animate-spin" />
-                        <span className="text-xs font-bold uppercase tracking-widest text-teal-300">
-                          Active Debate Chamber
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-                        <span className="text-[9px] font-mono font-bold text-teal-400 uppercase">
-                          State: {String(debateState.value).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Topic display */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Topic of Inquiry</span>
-                      <p className="text-xs font-medium text-slate-300 italic">"{debateState.context.topic}"</p>
-                    </div>
-
-                    {/* Active agent visualization */}
-                    {debateState.context.activeAgentId && (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
-                        <div className="relative">
-                          <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20">
-                            <Cpu className="w-5 h-5 text-teal-400" />
                           </div>
-                          <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-black animate-ping" />
-                          <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-black" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[9px] text-teal-400 uppercase tracking-widest font-bold">Active Agent Reasoning</span>
-                          <h4 className="text-xs font-bold text-slate-200 capitalize">
-                            {debateState.context.activeAgentId === 'logician' ? 'Analytical Logician' :
-                             debateState.context.activeAgentId === 'catalyst' ? 'Creative Catalyst' : 'Adversarial Auditor'}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-500">
-                          Turn {debateState.context.turns + 1} of {debateState.context.maxTurns}
-                        </span>
-                      </div>
-                    )}
 
-                    {/* Live State Vector gauges */}
-                    <div className="space-y-2.5">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Cognitive State Vector Telemetry</span>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {[
-                          { name: 'Coherence', val: debateState.context.currentStateVector[0] },
-                          { name: 'Novelty', val: debateState.context.currentStateVector[1] },
-                          { name: 'Factuality', val: debateState.context.currentStateVector[2] },
-                          { name: 'Turn Parity', val: debateState.context.currentStateVector[3] },
-                          { name: 'Agreement', val: debateState.context.currentStateVector[4] },
-                          { name: 'Tension', val: debateState.context.currentStateVector[5] }
-                        ].map((dim) => (
-                          <div key={dim.name} className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex flex-col gap-1.5">
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">{dim.name}</span>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full rounded-full transition-all duration-500" 
-                                  style={{ 
-                                    width: `${(dim.val ?? 0.5) * 100}%`,
-                                    backgroundColor: dim.name === 'Coherence' ? '#818cf8' :
-                                                     dim.name === 'Novelty' ? '#fbbf24' :
-                                                     dim.name === 'Factuality' ? '#34d399' :
-                                                     dim.name === 'Turn Parity' ? '#c084fc' :
-                                                     dim.name === 'Agreement' ? '#2dd4bf' : '#f43f5e'
+                          {/* Real-Time ML Intent Predictor Panel */}
+                          <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
+                            {predictions && predictions.length > 0 ? (
+                              <NeuralIntentPanel predictions={predictions} />
+                            ) : (
+                              <div className="text-center py-4 text-slate-500 border border-dashed border-white/5 rounded-xl">
+                                <p className="text-xs italic mb-2 font-sans">
+                                  Awaiting telemetry logs...
+                                </p>
+                                <button
+                                  onClick={async () => {
+                                    const now = new Date();
+                                    const hours = now.getHours() + now.getMinutes() / 60;
+                                    const tabIndices: Record<string, number> = {
+                                      Memory: 0,
+                                      Brains: 1,
+                                      Heartbeat: 2,
+                                      'Mind Map': 3,
+                                      Brainstorm: 4,
+                                      Logs: 5,
+                                    };
+                                    const tabIdx =
+                                      tabIndices[activeTab] !== undefined
+                                        ? tabIndices[activeTab]
+                                        : -1;
+                                    const contextVector = [
+                                      hours,
+                                      tabIdx,
+                                      messages.length,
+                                      memories.length,
+                                      window.innerWidth >= 1024 ? 1.0 : 0.0,
+                                    ];
+                                    await logInteraction('manual_sync');
+                                    await fetchPredictions(contextVector);
                                   }}
-                                />
+                                  className="text-[10px] text-teal-400 hover:text-teal-300 font-bold uppercase tracking-wider underline transition-colors"
+                                >
+                                  Force Calibration Run
+                                </button>
                               </div>
-                              <span className="text-[9px] font-mono font-bold text-slate-400">
-                                {(dim.val ?? 0.5).toFixed(2)}
+                            )}
+
+                            <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                              <span>
+                                Model Partition:{' '}
+                                <span className="text-emerald-400">CALIBRATED</span>
+                              </span>
+                              <span>
+                                Logs: <span className="text-teal-400">{telemetryLogCount}</span>
                               </span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Current logs generated so far */}
-                    {debateState.context.debateLog.length > 0 && (
-                      <div className="space-y-2 border-t border-white/5 pt-3">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Live Transcript Logs</span>
-                        <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
-                          {debateState.context.debateLog.map((log, idx) => (
-                            <div key={idx} className="p-2.5 rounded-lg bg-white/5 border border-white/5">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[9px] font-bold text-teal-400 uppercase tracking-wider">
-                                  {log.agent}
-                                </span>
-                                <span className="text-[8px] font-mono text-slate-500 uppercase tracking-tight">
-                                  Move: {log.move}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-400 italic leading-relaxed line-clamp-2">
-                                "{log.text}"
-                              </p>
+                        </div>
+                      ) : activeTab === 'Mind Map' ? (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full w-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pb-10">
+                          <MindMap
+                            memories={memories}
+                            theme={theme as any}
+                            sparks={sparks}
+                            onBindSpark={handleSparkBind}
+                          />
+                        </div>
+                      ) : activeTab === 'Brainstorm' ? (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full">
+                          <Brainstorm
+                            memories={memories}
+                            onAddMemory={addMemoryDirectly}
+                            addLog={addLog}
+                          />
+                        </div>
+                      ) : activeTab === 'Logs' ? (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full max-h-[calc(100vh-180px)]">
+                          <AutoDebugger logs={systemLogs} />
+                          <div className="flex items-center justify-between mb-4 mt-4">
+                            <div className="flex items-center gap-2">
+                              <Terminal className="w-4 h-4 text-blue-400" />
+                              <h3 className="text-blue-400 text-xs font-bold uppercase tracking-widest">
+                                Neural Event Stream
+                              </h3>
                             </div>
-                          ))}
+                            <button
+                              onClick={() => setSystemLogs([])}
+                              className="p-1.5 rounded bg-white/5 text-slate-500 hover:text-red-400 transition-colors"
+                              title="Clear Logs"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
+                            {systemLogs.length === 0 ? (
+                              <div className="text-center py-12 text-slate-600 text-xs font-mono uppercase tracking-widest">
+                                No logs in current session buffer
+                              </div>
+                            ) : (
+                              systemLogs.map((log) => (
+                                <div
+                                  key={log.id}
+                                  className="p-2 rounded bg-black/40 border border-white/5 flex flex-col gap-1"
+                                >
+                                  <div className="flex items-center justify-between text-[8px] font-mono tracking-tighter">
+                                    <span
+                                      className={`${
+                                        log.level === 'ERROR'
+                                          ? 'text-red-400'
+                                          : log.level === 'WARN'
+                                            ? 'text-yellow-400'
+                                            : log.level === 'NEURAL'
+                                              ? 'text-teal-400'
+                                              : 'text-blue-400'
+                                      }`}
+                                    >
+                                      [{log.level}] {log.source}
+                                    </span>
+                                    <span className="text-slate-600">
+                                      {new Date(log.timestamp).toLocaleTimeString()}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 leading-tight font-mono">
+                                    {log.message}
+                                  </p>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* Reasoning Indicator */}
-                {modelState === 'Reasoning' && !isDebateMode && (
-                  <div className="flex justify-start w-full animate-in fade-in slide-in-from-left-4 duration-500">
-                    <div className={`max-w-[80%] p-5 rounded-2xl ${theme === 'dark' ? 'bg-white/5 border border-white/10' : 'bg-black/5 border border-black/5'} backdrop-blur-md rounded-tl-sm flex items-center gap-3`}>
-                      <div className="w-8 h-8 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
-                        <Brain className="w-4 h-4 text-teal-400 animate-pulse" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[9px] text-teal-400 uppercase tracking-widest font-bold font-mono">Reasoning...</span>
-                        <div className="flex gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce [animation-delay:-0.3s]" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce [animation-delay:-0.15s]" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-teal-400/60 animate-bounce" />
-                        </div>
-                      </div>
+                      ) : activeTab === 'Telemetry' ? (
+                        <TelemetryDashboard
+                          theme={theme}
+                          cognitiveMode={cognitiveMode}
+                          onModeChange={setCognitiveMode}
+                          efeScore={efeScore}
+                          policyConfidence={policyConfidence}
+                        />
+                      ) : activeTab === 'Neural Debugger' ? (
+                        <NeuralDebugger />
+                      ) : activeTab === 'Memoria' ? (
+                        <MemoriaDashboard />
+                      ) : activeTab === 'Workspace' ? (
+                        <ExecutiveIntegrationNode theme={theme} />
+                      ) : null}
                     </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
-          </div>
+          </main>
 
-          {/* Bottom Control Bar */}
-          <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md z-20">
-            <div className="max-w-3xl mx-auto">
-              
-              {/* Cognition Depth Slider */}
-              <div className="mb-4 flex flex-col md:flex-row items-center justify-between gap-4 px-2">
-                <div className="flex items-center gap-6">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
-                      <Sliders className="w-3 h-3" /> Cognition Depth
-                    </span>
-                    <div className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5">
-                      {(['Fast', 'Balanced', 'Deep Reasoning'] as CognitionDepth[]).map(d => (
-                        <button
-                          key={d}
-                          onClick={() => setDepth(d)}
-                          className={`px-3 py-1 text-[10px] uppercase tracking-wider rounded-md transition-all ${
-                            depth === d 
-                              ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' 
-                              : 'text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+          {contextMenu && (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              msgId={contextMenu.msgId}
+              onClose={() => setContextMenu(null)}
+              onCopy={(id) => {
+                const msg = messages.find((m) => m.id === id);
+                if (msg && msg.content) {
+                  const text =
+                    typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                  navigator.clipboard.writeText(text);
+                  addLog('Message text copied to clipboard', 'INFO', 'UI');
+                }
+              }}
+              onFlag={(id) => {
+                addLog(`Message ${id} flagged for review`, 'WARN', 'UI');
+              }}
+              onDelete={(id) => {
+                setMessages((prev) => prev.filter((m) => m.id !== id));
+                addLog('Message deleted from local context', 'INFO', 'UI');
+              }}
+            />
+          )}
 
-                  <div className="flex flex-col border-l border-white/5 pl-6">
-                    <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2">
-                      <Network className="w-3 h-3" /> Consensus Mode
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsDebateMode(!isDebateMode)}
-                      className={`flex items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-wider rounded-md transition-all border ${
-                        isDebateMode 
-                          ? 'bg-teal-500/40 text-teal-100 border-teal-400' 
-                          : 'bg-white/5 text-slate-500 border-white/5 hover:text-slate-300'
-                      }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${isDebateMode ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`} />
-                      {isDebateMode ? 'ACTIVE' : 'OFF'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Predictive Shortcuts */}
-              {activeMessages.length > 0 && activeMessages[activeMessages.length - 1].role === 'ai' && activeMessages[activeMessages.length - 1].suggestedShortcuts && (
-                <div className="flex flex-wrap gap-2 mb-4 px-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  {activeMessages[activeMessages.length - 1].suggestedShortcuts?.map((shortcut, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setInput(shortcut);
-                        // Optional: auto-send if desired, but letting user edit is safer
-                        addLog(`Neural shortcut selected: ${shortcut}`, 'NEURAL', 'UI');
-                      }}
-                      className="px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 hover:border-teal-500/40 transition-all flex items-center gap-2 group"
-                    >
-                      <Zap className="w-3 h-3 text-teal-500 group-hover:scale-125 transition-transform" />
-                      {shortcut}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              
-              {/* SLM Indicator */}
-              <div className="px-4 py-1 flex items-center justify-between text-xs text-slate-500 font-mono">
-                {slmLoaded ? (
-                  <span className="text-teal-500 flex items-center gap-2"><Zap className="w-3 h-3" /> System 1 (SLM) Active</span>
-                ) : slmProgress ? (
-                  <span className="text-amber-500 flex items-center gap-2">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Loading System 1 Model ({slmProgress.file} - {Math.round(slmProgress.progress || 0)}%)
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Initializing System 1...</span>
-                )}
-              </div>
-
-              {/* Input Area */}
-              <form onSubmit={handleSend} className={`relative flex items-end gap-2 border rounded-3xl p-3 transition-all duration-300 focus-within:border-indigo-500/60 focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:shadow-[0_0_40px_rgba(99,102,241,0.15)] ${
-                theme === 'dark' ? 'bg-[#0a0a0f] border-white/10' : 'bg-white border-black/10 shadow-sm'
-              }`}>
-                <button type="button" onClick={toggleRecording} className={`p-3 rounded-full transition-colors ${isRecording ? 'text-red-500 animate-pulse bg-red-500/10' : (theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5')}`}>
-                  <Paperclip className="w-5 h-5" />
-                </button>
-                
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  onFocus={() => modelState === 'Idle' && setModelState('Listening')}
-                  onBlur={() => modelState === 'Listening' && !input && setModelState('Idle')}
-                  placeholder="Initiate dialogue..."
-                  className={`flex-1 bg-transparent border-none focus:ring-0 resize-none py-3 min-h-[48px] max-h-[200px] font-sans ${
-                    theme === 'dark' ? 'text-slate-200 placeholder:text-slate-600' : 'text-slate-800 placeholder:text-slate-400'
-                  }`}
-                  rows={1}
-                />
-                
-                <button type="button" className={`p-3 rounded-full transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-indigo-400 hover:bg-white/5' : 'text-slate-500 hover:text-indigo-600 hover:bg-black/5'}`}>
-                  <Mic className="w-5 h-5" />
-                </button>
-                
-                <button 
-                  type="submit" 
-                  disabled={!input.trim() || (modelState !== 'Idle' && modelState !== 'Listening')}
-                  className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-indigo-400/50 rounded-full hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed transition-all"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </form>
-            </div>
-          
-                </div>
-              </div>
-            </div>
-            ) : (
-              <div className="p-6 flex-1 overflow-y-auto custom-scrollbar w-full h-full">
-                {activeTab === 'Memory' ? (
-              <MemoryTab 
-                memoryViewMode={memoryViewMode}
-                setMemoryViewMode={setMemoryViewMode}
-                isConsolidating={isConsolidating}
-                memories={memories}
-                handleManualConsolidate={handleManualConsolidate}
-                memorySearchQuery={memorySearchQuery}
-                setMemorySearchQuery={setMemorySearchQuery}
-                selectedMemoryIds={selectedMemoryIds}
-                handleSelectAllMemories={handleSelectAllMemories}
-                handleClearMemorySelection={handleClearMemorySelection}
-                handleBulkDelete={handleBulkDelete}
-                isBulkDeleting={isBulkDeleting}
-                handleBulkUpdateStrength={handleBulkUpdateStrength}
-                isBulkReinforcing={isBulkReinforcing}
-                isBulkDecaying={isBulkDecaying}
-                isBulkTagging={isBulkTagging}
-                bulkTagInput={bulkTagInput}
-                setBulkTagInput={setBulkTagInput}
-                handleBulkTag={handleBulkTag}
-                selectedTagFilter={selectedTagFilter}
-                setSelectedTagFilter={setSelectedTagFilter}
-                                filteredMemories={filteredMemories}
-                handleSingleUpdateStrength={handleSingleUpdateStrength}
-                togglePinMemory={togglePinMemory}
-                removeMemory={removeMemory}
-                setSelectedMemoryIds={setSelectedMemoryIds}
-                setModelState={setModelState}
-                fetchInsight={fetchInsight}
-                setActiveInsight={setActiveInsight}
-                startDateFilter={startDateFilter}
-                setStartDateFilter={setStartDateFilter}
-                endDateFilter={endDateFilter}
-                setEndDateFilter={setEndDateFilter}
-                handleAddMemory={handleAddMemory}
-                newMemory={newMemory}
-                setNewMemory={setNewMemory}
-              />
-            ) : activeTab === 'Brains' ? (
-              <BrainsTab 
-                neuralSway={neuralSway}
-                triggerSwayRNG={triggerSwayRNG}
-                isSpinning={isSpinning}
-                PERSONAS={allPersonas}
-                activePersona={activePersona}
-                setActivePersona={setActivePersona}
-                agentStats={agentStats}
-                addLog={addLog}
-                modelState={modelState}
-                skills={skills}
-                toggleSkill={toggleSkill}
-                depth={depth}
-                setDepth={setDepth}
-                isAutonomyActive={isAutonomyActive}
-                setIsAutonomyActive={setIsAutonomyActive}
-                autonomyInterval={autonomyInterval}
-                setAutonomyInterval={setAutonomyInterval}
-                cognitiveDecisions={cognitiveDecisions}
-                triggerManualStep={runAgentStep}
-              />
-            ) : activeTab === 'Heartbeat' ? (
-              <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6 h-full overflow-y-auto custom-scrollbar pr-2 pb-10">
-                <VitalsDashboard />
-                <SentimentDriftChart memories={memories} />
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <Activity className="w-12 h-12 text-teal-400" />
-                    </div>
-                    <h3 className="text-teal-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4">
-                      <InfoTooltip label="Neural Resonance">
-                        A composite frequency score reflecting the harmonic alignment of RL exploration and LLM processing stability.
-                      </InfoTooltip>
+          {/* Settings Overlay */}
+          <div className="absolute inset-0 z-50 pointer-events-none">
+            {isSettingsOpen && (
+              <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-[#12121a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
+                    <h3 className="text-lg font-semibold text-slate-200 tracking-tight flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-indigo-400" />
+                      System Configuration
                     </h3>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-4xl font-mono font-bold text-white leading-none">{vitals.resonance.toFixed(1)}</span>
-                      <span className="text-teal-500 text-xs font-bold mb-1">Hz</span>
-                    </div>
-                    <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                      <div className="h-full bg-teal-500 transition-all duration-1000" style={{ width: `${vitals.resonance}%` }} />
-                    </div>
+                    <button
+                      onClick={() => setIsSettingsOpen(false)}
+                      className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                      <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-2">
-                        <InfoTooltip label="Cognitive Entropy">
-                          The degree of chaos or uncertainty in the agent's current state evaluation matrix.
-                        </InfoTooltip>
-                      </h4>
-                      <span className="text-xl font-mono text-white">{vitals.entropy.toFixed(2)}%</span>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                      <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-2">
-                        <InfoTooltip label="Stability Matrix">
-                          Overall system health coefficient derived from error rates and memory fragmentation.
-                        </InfoTooltip>
-                      </h4>
-                      <span className="text-xl font-mono text-white">{vitals.stability.toFixed(2)}%</span>
-                    </div>
-                  </div>
-                  <PolicyConvergenceChart data={qValueHistory} />
-                </div>
-
-                <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
-                  <h3 className="text-amber-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Network className="w-3 h-3" />
-                    <InfoTooltip label="System Diagnostics">
-                      Hardware and network layer telemetry for the agent's hosting environment.
-                    </InfoTooltip>
-                  </h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: 'CPU Load', value: `${vitals.cpu.toFixed(1)}%`, status: vitals.cpu > 80 ? 'Heavy' : 'Optimal', tip: 'Processor utilization across the container runtime.' },
-                      { label: 'Memory Usage', value: `${vitals.memory.toFixed(1)}%`, status: vitals.memory > 85 ? 'Critical' : 'Nominal', tip: 'RAM allocation relative to the container limit.' },
-                      { label: 'Avg Latency', value: `${vitals.latency.toFixed(0)}ms`, status: vitals.latency > 2000 ? 'Slow' : 'Stable', tip: 'Mean response time for API invocations and inference cycles.' },
-                      { label: 'Recent Errors', value: vitals.errors, status: vitals.errors > 0 ? 'Warning' : 'Healthy', tip: 'Count of caught exceptions or failed operations in the current session.' }
-                    ].map((stat, i) => (
-                      <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                        <InfoTooltip label={<span className="text-xs text-slate-500">{stat.label}</span>}>
-                          {stat.tip}
-                        </InfoTooltip>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-mono text-slate-300">{stat.value}</span>
-                          <span className={`text-[9px] font-bold uppercase tracking-tighter ${
-                            stat.status === 'Optimal' || stat.status === 'Nominal' || stat.status === 'Stable' || stat.status === 'Healthy'
-                              ? 'text-teal-500'
-                              : stat.status === 'Warning' || stat.status === 'Heavy'
-                                ? 'text-amber-500'
-                                : 'text-red-500'
-                          }`}>{stat.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Self-Healing Maintenance Log */}
-                <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
-                  <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <Zap className="w-3 h-3" />
-                    <InfoTooltip label="Self-Healing Log">
-                      Autonomous background processes the agent has executed to repair context or resolve deadlocks.
-                    </InfoTooltip>
-                  </h3>
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                    {maintenanceHistory.length > 0 ? (
-                      maintenanceHistory.map((log, i) => (
-                        <div key={i} className="p-2 border border-white/5 rounded-lg bg-white/5 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-300">{log.actionTaken}</span>
-                            <span className="text-[8px] text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-[9px]">
-                            <span className="text-slate-500">CPU: {(log.cpuLoad * 100).toFixed(1)}%</span>
-                            <span className="text-slate-500">MEM: {(log.memoryUsageRatio * 100).toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4">
-                        <span className="text-[10px] text-slate-600">No recent maintenance actions.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Real-Time ML Intent Predictor Panel */}
-                <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
-                  {predictions && predictions.length > 0 ? (
-                    <NeuralIntentPanel predictions={predictions} />
-                  ) : (
-                    <div className="text-center py-4 text-slate-500 border border-dashed border-white/5 rounded-xl">
-                      <p className="text-xs italic mb-2 font-sans">Awaiting telemetry logs...</p>
-                      <button 
-                        onClick={async () => {
-                          const now = new Date();
-                          const hours = now.getHours() + now.getMinutes() / 60;
-                          const tabIndices: Record<string, number> = { 'Memory': 0, 'Brains': 1, 'Heartbeat': 2, 'Mind Map': 3, 'Brainstorm': 4, 'Logs': 5 };
-                          const tabIdx = tabIndices[activeTab] !== undefined ? tabIndices[activeTab] : -1;
-                          const contextVector = [hours, tabIdx, messages.length, memories.length, window.innerWidth >= 1024 ? 1.0 : 0.0];
-                          await logInteraction('manual_sync');
-                          await fetchPredictions(contextVector);
+                  <div className="p-6 space-y-6">
+                    {/* Model Selection Dropdown Setting */}
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Active LLM Model</h4>
+                      <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                        Choose the primary Gemini generative model or fallback for analytical steps.
+                      </p>
+                      <select
+                        value={activeModel}
+                        onChange={(e) => {
+                          setActiveModel(e.target.value);
+                          addLog(`Primary model switched to: ${e.target.value}`, 'INFO', 'SYSTEM');
                         }}
-                        className="text-[10px] text-teal-400 hover:text-teal-300 font-bold uppercase tracking-wider underline transition-colors"
+                        className="w-full bg-[#1c1c27] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer font-mono"
                       >
-                        Force Calibration Run
+                        <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro (Deep)</option>
+                        <option value="gemini-1.5-flash-8b">gemini-1.5-flash-8b (Lite)</option>
+                      </select>
+                    </div>
+
+                    <div className="h-px bg-white/5" />
+
+                    {/* Setting Item */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-slate-300">Telemetry Data</h4>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Share anonymized interaction logs
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setTelemetryEnabled(!telemetryEnabled)}
+                        className={`w-12 h-6 rounded-full border relative flex items-center px-1 transition-colors ${telemetryEnabled ? 'bg-teal-500/20 border-teal-500/50' : 'bg-slate-800 border-white/10'}`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full absolute shadow-sm flex items-center justify-center transition-all ${telemetryEnabled ? 'bg-teal-400 right-1' : 'bg-slate-500 left-1'}`}
+                        >
+                          {telemetryEnabled && (
+                            <Activity className="w-2.5 h-2.5 text-teal-900 animate-pulse" />
+                          )}
+                        </div>
                       </button>
                     </div>
-                  )}
-                  
-                  <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                    <span>Model Partition: <span className="text-emerald-400">CALIBRATED</span></span>
-                    <span>Logs: <span className="text-teal-400">{telemetryLogCount}</span></span>
-                  </div>
-                </div>
-              </div>
-              ) : activeTab === 'Mind Map' ? (
-              <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full w-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pb-10">
-                <MindMap memories={memories} theme={theme as any} sparks={sparks} onBindSpark={handleSparkBind} />
-              </div>
-            ) : activeTab === 'Brainstorm' ? (
-              <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full">
-                <Brainstorm 
-                  memories={memories} 
-                  onAddMemory={addMemoryDirectly} 
-                  addLog={addLog}
-                />
-              </div>
-            ) : activeTab === 'Logs' ? (
-              <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full max-h-[calc(100vh-180px)]">
-                <AutoDebugger logs={systemLogs} />
-                <div className="flex items-center justify-between mb-4 mt-4">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-blue-400 text-xs font-bold uppercase tracking-widest">Neural Event Stream</h3>
-                  </div>
-                  <button 
-                    onClick={() => setSystemLogs([])}
-                    className="p-1.5 rounded bg-white/5 text-slate-500 hover:text-red-400 transition-colors"
-                    title="Clear Logs"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
-                  {systemLogs.length === 0 ? (
-                    <div className="text-center py-12 text-slate-600 text-xs font-mono uppercase tracking-widest">
-                      No logs in current session buffer
-                    </div>
-                  ) : (
-                    systemLogs.map(log => (
-                      <div key={log.id} className="p-2 rounded bg-black/40 border border-white/5 flex flex-col gap-1">
-                        <div className="flex items-center justify-between text-[8px] font-mono tracking-tighter">
-                          <span className={`${
-                            log.level === 'ERROR' ? 'text-red-400' : 
-                            log.level === 'WARN' ? 'text-yellow-400' : 
-                            log.level === 'NEURAL' ? 'text-teal-400' : 'text-blue-400'
-                          }`}>[{log.level}] {log.source}</span>
-                          <span className="text-slate-600">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-tight font-mono">{log.message}</p>
+
+                    <div className="h-px bg-white/5" />
+
+                    {/* Setting Item */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-slate-300">
+                          Memory Retention Limit
+                        </h4>
+                        <span className="text-xs font-mono text-teal-400 bg-teal-400/10 px-2 py-0.5 rounded border border-teal-400/20">
+                          2048 Tokens
+                        </span>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              ) : activeTab === 'Telemetry' ? (
-                <TelemetryDashboard 
-                  theme={theme} 
-                  cognitiveMode={cognitiveMode}
-                  onModeChange={setCognitiveMode}
-                  efeScore={efeScore}
-                  policyConfidence={policyConfidence}
-                />
-              ) : activeTab === 'Neural Debugger' ? (
-                <NeuralDebugger />
-              ) : activeTab === 'Memoria' ? (
-                <MemoriaDashboard />
-              ) : activeTab === 'Workspace' ? (
-                <ExecutiveIntegrationNode theme={theme} />
-              ) : null}
-            </div>
-          )}
-              </motion.div>
-            </AnimatePresence>
-        </div>
-      </main>
-
-        {contextMenu && (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            msgId={contextMenu.msgId}
-            onClose={() => setContextMenu(null)}
-            onCopy={(id) => {
-              const msg = messages.find(m => m.id === id);
-              if (msg && msg.content) {
-                const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                navigator.clipboard.writeText(text);
-                addLog('Message text copied to clipboard', 'INFO', 'UI');
-              }
-            }}
-            onFlag={(id) => {
-              addLog(`Message ${id} flagged for review`, 'WARN', 'UI');
-            }}
-            onDelete={(id) => {
-              setMessages(prev => prev.filter(m => m.id !== id));
-              addLog('Message deleted from local context', 'INFO', 'UI');
-            }}
-          />
-        )}
-
-        {/* Settings Overlay */}
-        <div className="absolute inset-0 z-50 pointer-events-none">
-          {isSettingsOpen && (
-            <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-[#12121a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
-                  <h3 className="text-lg font-semibold text-slate-200 tracking-tight flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-indigo-400" />
-                    System Configuration
-                  </h3>
-                  <button 
-                    onClick={() => setIsSettingsOpen(false)}
-                    className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="p-6 space-y-6">
-                
-                {/* Model Selection Dropdown Setting */}
-                <div>
-                  <h4 className="text-sm font-medium text-slate-300 mb-2">Active LLM Model</h4>
-                  <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">Choose the primary Gemini generative model or fallback for analytical steps.</p>
-                  <select
-                    value={activeModel}
-                    onChange={(e) => {
-                      setActiveModel(e.target.value);
-                      addLog(`Primary model switched to: ${e.target.value}`, 'INFO', 'SYSTEM');
-                    }}
-                    className="w-full bg-[#1c1c27] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer font-mono"
-                  >
-                    <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
-                    <option value="gemini-1.5-pro">gemini-1.5-pro (Deep)</option>
-                    <option value="gemini-1.5-flash-8b">gemini-1.5-flash-8b (Lite)</option>
-                  </select>
-                </div>
-
-                <div className="h-px bg-white/5" />
-                
-                {/* Setting Item */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium text-slate-300">Telemetry Data</h4>
-                    <p className="text-xs text-slate-500 mt-1">Share anonymized interaction logs</p>
-                  </div>
-                  <button 
-                    onClick={() => setTelemetryEnabled(!telemetryEnabled)}
-                    className={`w-12 h-6 rounded-full border relative flex items-center px-1 transition-colors ${telemetryEnabled ? 'bg-teal-500/20 border-teal-500/50' : 'bg-slate-800 border-white/10'}`}
-                  >
-                    <div className={`w-4 h-4 rounded-full absolute shadow-sm flex items-center justify-center transition-all ${telemetryEnabled ? 'bg-teal-400 right-1' : 'bg-slate-500 left-1'}`}>
-                      {telemetryEnabled && <Activity className="w-2.5 h-2.5 text-teal-900 animate-pulse" />}
+                      <input
+                        type="range"
+                        min="100"
+                        max="4000"
+                        defaultValue="2048"
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                      />
+                      <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
+                        <span>100</span>
+                        <span>4000</span>
+                      </div>
                     </div>
-                  </button>
-                </div>
 
-                <div className="h-px bg-white/5" />
+                    <div className="h-px bg-white/5" />
 
-                {/* Setting Item */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-slate-300">Memory Retention Limit</h4>
-                    <span className="text-xs font-mono text-teal-400 bg-teal-400/10 px-2 py-0.5 rounded border border-teal-400/20">2048 Tokens</span>
+                    {/* Setting Item */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-slate-300">Knowledge Base (RAG)</h4>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={kbInput}
+                          onChange={(e) => setKbInput(e.target.value)}
+                          placeholder="Add custom context..."
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-500/50 transition-colors"
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddKnowledge()}
+                        />
+                        <button
+                          onClick={handleAddKnowledge}
+                          disabled={isAddingKb || !kbInput.trim()}
+                          className="px-3 py-2 bg-teal-500/20 text-teal-400 border border-teal-500/30 rounded-lg hover:bg-teal-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
+                        >
+                          {isAddingKb ? 'Adding...' : 'Inject'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Added context will be matched against your queries using vector embeddings.
+                      </p>
+                    </div>
                   </div>
-                  <input 
-                    type="range" 
-                    min="100" 
-                    max="4000" 
-                    defaultValue="2048"
-                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
-                  />
-                  <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
-                    <span>100</span>
-                    <span>4000</span>
-                  </div>
-                </div>
 
-                <div className="h-px bg-white/5" />
-
-                {/* Setting Item */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-slate-300">Knowledge Base (RAG)</h4>
-                  </div>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={kbInput}
-                      onChange={e => setKbInput(e.target.value)}
-                      placeholder="Add custom context..."
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-teal-500/50 transition-colors"
-                      onKeyDown={e => e.key === 'Enter' && handleAddKnowledge()}
-                    />
-                    <button 
-                      onClick={handleAddKnowledge}
-                      disabled={isAddingKb || !kbInput.trim()}
-                      className="px-3 py-2 bg-teal-500/20 text-teal-400 border border-teal-500/30 rounded-lg hover:bg-teal-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
+                  <div className="p-4 border-t border-white/5 bg-black/20 flex justify-end">
+                    <button
+                      onClick={() => setIsSettingsOpen(false)}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-900/20"
                     >
-                      {isAddingKb ? 'Adding...' : 'Inject'}
+                      Save Configuration
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Added context will be matched against your queries using vector embeddings.</p>
                 </div>
-
               </div>
-              
-              <div className="p-4 border-t border-white/5 bg-black/20 flex justify-end">
-                <button 
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-900/20"
-                >
-                  Save Configuration
-                </button>
-              </div>
-            </div>
+            )}
           </div>
-        )}
+
+          <MemoryNudge
+            memory={nudgeMemory}
+            onUse={handleNudgeUse}
+            onDismiss={handleNudgeDismiss}
+            onTimeout={handleNudgeTimeout}
+          />
+
+          <ConsolidationSuggestion
+            proposal={consolidationProposal}
+            onConfirm={handleConsolidationConfirm}
+            onDismiss={handleConsolidationDismiss}
+            onTimeout={handleConsolidationTimeout}
+          />
+        </div>
       </div>
-
-        <MemoryNudge 
-          memory={nudgeMemory}
-          onUse={handleNudgeUse}
-          onDismiss={handleNudgeDismiss}
-          onTimeout={handleNudgeTimeout}
-        />
-
-        <ConsolidationSuggestion 
-          proposal={consolidationProposal}
-          onConfirm={handleConsolidationConfirm}
-          onDismiss={handleConsolidationDismiss}
-          onTimeout={handleConsolidationTimeout}
-        />
-
-      </div>
-    </div>
     </>
   );
 }
