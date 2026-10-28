@@ -40,7 +40,7 @@ const executeCodeInternal = async (code: string) => {
 
       let output = "";
 
-      context.global.setSync('_log', new ivm.Callback((...args) => {
+      context.global.setSync('_log', new ivm.Callback((...args: any[]) => {
         output += args.join(' ') + '\n';
       }));
 
