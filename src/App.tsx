@@ -30,6 +30,7 @@ import { Brainstorm } from './components/Brainstorm.js';
 import { NeuralIntentPanel } from "./components/NeuralIntentPanel.js";
 import { NeuralDebugger } from './components/NeuralDebugger.js';
 import { MemoriaDashboard } from './components/MemoriaDashboard.js';
+import UniSyncMemoryPanel from './components/UniSyncMemoryPanel.js';
 
 import { ExecutiveIntegrationNode } from './components/ExecutiveIntegrationNode.js';
 import { LandingScreen } from './components/LandingScreen.js';
@@ -3765,6 +3766,7 @@ function MainApp() {
               ) : activeTab === 'Mind Map' ? (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full w-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pb-10">
                 <MindMap memories={memories} theme={theme as any} sparks={sparks} onBindSpark={handleSparkBind} />
+                <UniSyncMemoryPanel theme={theme} />
               </div>
             ) : activeTab === 'Brainstorm' ? (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full">
