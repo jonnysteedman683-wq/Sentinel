@@ -89,18 +89,22 @@ jobs:
 
   go-test:
     name: Go Test (decision service)
-    if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
     runs-on: ubuntu-latest
+    # hashFiles() is not allowed in a job-level `if:` (GitHub rejects the whole workflow),
+    # so the job always runs and each step checks for the Go module instead.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
+        if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
         with:
           go-version-file: go-sentinel/go.mod
           cache-dependency-path: go-sentinel/go.sum
       - name: Vet
+        if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
         working-directory: go-sentinel
         run: go vet ./internal/...
       - name: Test
+        if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
         working-directory: go-sentinel
         run: go test -race -cover ./internal/...
 
