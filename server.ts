@@ -29,6 +29,7 @@ import { getAi, callGeminiGenerate, generateLocalEmbedding, schemaToInstruction 
 import { activeUserIds } from "./src/lib/session-state.js";
 import { setupVoiceGateway } from "./src/lib/voice-gateway.js";
 import { authenticateRequest } from "./src/lib/auth.js";
+import { registerUniSyncMemoryRoute } from "./src/lib/unisync-route.js";
 
 
 const executeCodeInternal = async (code: string) => {
@@ -548,6 +549,7 @@ function applyResilience(app: express.Application) {
 
   // Verify the caller's Firebase ID token before anything reads identity.
   app.use(authenticateRequest());
+  registerUniSyncMemoryRoute(app); // LinX shared memory, read-only; degrades to {enabled:false}
 
   // Debugging Infrastructure & Request ID
   app.use((req: any, _res, next) => {
