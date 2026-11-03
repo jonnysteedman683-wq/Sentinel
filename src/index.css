@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -58,4 +59,22 @@ body {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Chat markdown: inherit the bubble's theme colour instead of prose's fixed palette */
+.chat-markdown {
+  --tw-prose-body: currentColor;
+  --tw-prose-headings: currentColor;
+  --tw-prose-lead: currentColor;
+  --tw-prose-bold: currentColor;
+  --tw-prose-counters: currentColor;
+  --tw-prose-bullets: currentColor;
+  --tw-prose-quotes: currentColor;
+  --tw-prose-code: currentColor;
+  --tw-prose-th-borders: color-mix(in srgb, currentColor 30%, transparent);
+  --tw-prose-td-borders: color-mix(in srgb, currentColor 20%, transparent);
+  --tw-prose-hr: color-mix(in srgb, currentColor 20%, transparent);
+  --tw-prose-links: rgb(129 140 248);
+  --tw-prose-pre-bg: rgb(0 0 0 / 0.35);
+  --tw-prose-pre-code: rgb(226 232 240);
 }
