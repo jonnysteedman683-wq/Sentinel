@@ -94,7 +94,7 @@ jobs:
     # so the job always runs and each step checks for the Go module instead.
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: ${{ hashFiles('go-sentinel/go.mod') != '' }}
         with:
           go-version-file: go-sentinel/go.mod
