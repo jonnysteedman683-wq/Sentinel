@@ -10,6 +10,7 @@ import {
 } from '../CommandWidgets.js';
 import InsightFeed from '../InsightFeed.js';
 import InsightReveal from '../InsightReveal.js';
+import { MarkdownMessage } from '../MarkdownMessage.js';
 import { PresenceOrb } from '../PresenceOrb.js';
 import { QpuErdWidget } from '../QpuErdWidget.js';
 import { ReasoningTree } from '../ReasoningTree.js';
@@ -255,11 +256,13 @@ export function ChatTab(props: ChatTabProps) {
                             )}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap">
-                            {typeof msg.content === 'string'
-                              ? msg.content
-                              : JSON.stringify(msg.content)}
-                          </p>
+                          <MarkdownMessage
+                            text={
+                              typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)
+                            }
+                          />
                         )}
                       </div>
                     )}
